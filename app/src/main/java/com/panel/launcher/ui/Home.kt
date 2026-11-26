@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -364,9 +365,10 @@ fun homeMenu(vm: LauncherViewModel, app: AppEntry, inDock: Boolean): List<MenuAc
 private fun SideRail(vm: LauncherViewModel, actions: HeaderActions) {
     val p = LocalTiles.current
     val pill = RoundedCornerShape(36.dp)
+    // Dock height (Settings): 0 = straight under the weather pill … 100 = bottom of the screen.
+    val f = vm.prefs.dockHeight.coerceIn(0, 100) / 100f
     Column(
-        Modifier.width(68.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.width(68.dp).fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Tile(
@@ -392,6 +394,8 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions) {
                 }
             }
         }
+        Spacer(Modifier.height(12.dp))
+        if (f > 0f) Spacer(Modifier.weight(f))
         val dock = vm.prefs.dock.mapNotNull { vm.appsByKey[it] }
         if (dock.isNotEmpty()) {
             Column(
@@ -412,6 +416,7 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions) {
                 }
             }
         }
+        if (f < 1f) Spacer(Modifier.weight(1f - f))
     }
 }
 

@@ -144,6 +144,17 @@ private fun SettingsBody(
             listOf("Left" to DockPosition.LEFT, "Right" to DockPosition.RIGHT, "Bottom" to DockPosition.BOTTOM),
             p.dockPosition,
         ) { p.dockPosition = it }
+        if (p.dockPosition != DockPosition.BOTTOM) {
+            Divider()
+            SliderRow(
+                "Dock height", p.dockHeight, 0..100,
+                when {
+                    p.dockHeight <= 2 -> "Top"
+                    p.dockHeight >= 98 -> "Bottom"
+                    else -> "${p.dockHeight}%"
+                },
+            ) { p.dockHeight = it }
+        }
         Divider()
         SwitchRow("Show Up next box", p.showUpNext) { p.showUpNext = it }
         Divider()
@@ -205,6 +216,45 @@ private fun SettingsBody(
                         .clickable { p.clockColor = argb },
                 )
             }
+        }
+    }
+
+    if (vm.calendars.isNotEmpty()) {
+        Group("Up next calendars") {
+            Text(
+                "Choose which calendars appear in Up next. Turned-off calendars still show in the agenda" +
+                    if (p.filterAgenda) " — unless the option at the bottom is on." else ".",
+                color = Subtle, fontSize = 13.sp, modifier = Modifier.padding(16.dp),
+            )
+            val hidden = p.upNextHiddenCalendars.toSet()
+            vm.calendars.groupBy { it.account }.forEach { (account, cals) ->
+                Divider()
+                Text(
+                    account.ifBlank { "On this phone" }, color = Subtle, fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp),
+                )
+                cals.forEach { cal ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable { vm.setCalendarInUpNext(cal.id, cal.id.toString() in hidden) }
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.foundation.layout.Box(
+                            Modifier.size(12.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(Color(cal.color or 0xFF000000.toInt())),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(cal.name, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = cal.id.toString() !in hidden,
+                            onCheckedChange = { vm.setCalendarInUpNext(cal.id, it) },
+                        )
+                    }
+                }
+            }
+            Divider()
+            SwitchRow("Filter the agenda too", p.filterAgenda) { p.filterAgenda = it }
         }
     }
 

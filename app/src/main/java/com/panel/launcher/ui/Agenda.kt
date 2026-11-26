@@ -41,7 +41,7 @@ fun AgendaSheet(vm: LauncherViewModel, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val now = vm.now
     val today = Fmt.day(now)
-    val grouped: Map<java.time.LocalDate, List<CalEvent>> = vm.events
+    val grouped: Map<java.time.LocalDate, List<CalEvent>> = vm.agendaEvents
         .groupBy { if (it.begin < now) today else Fmt.day(it.begin) }
         .toSortedMap()
 

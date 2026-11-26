@@ -21,7 +21,10 @@ data class CalEvent(
     val location: String?,
     val color: Int,
     val calendarName: String?,
+    val calendarId: Long = 0,
 )
+
+data class CalendarInfo(val id: Long, val name: String, val account: String, val color: Int)
 
 object CalendarRepository {
     fun hasPermission(context: Context) =
@@ -49,6 +52,7 @@ object CalendarRepository {
             CalendarContract.Instances.DISPLAY_COLOR,
             CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
             CalendarContract.Instances.SELF_ATTENDEE_STATUS,
+            CalendarContract.Instances.CALENDAR_ID,
         )
         val out = mutableListOf<CalEvent>()
         runCatching {
@@ -73,11 +77,36 @@ object CalendarRepository {
                         location = c.getString(5)?.takeIf { it.isNotBlank() },
                         color = c.getInt(6),
                         calendarName = c.getString(7),
+                        calendarId = c.getLong(9),
                     )
                 }
             }
         }
         out.sortedWith(compareBy<CalEvent> { it.begin }.thenBy { !it.allDay })
+    }
+
+    /** Every calendar synced to the phone (yours, work, shared ones…). */
+    suspend fun calendars(context: Context): List<CalendarInfo> = withContext(Dispatchers.IO) {
+        if (!hasPermission(context)) return@withContext emptyList()
+        val out = mutableListOf<CalendarInfo>()
+        runCatching {
+            context.contentResolver.query(
+                CalendarContract.Calendars.CONTENT_URI,
+                arrayOf(
+                    CalendarContract.Calendars._ID,
+                    CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+                    CalendarContract.Calendars.ACCOUNT_NAME,
+                    CalendarContract.Calendars.CALENDAR_COLOR,
+                ),
+                "${CalendarContract.Calendars.VISIBLE} = 1", null,
+                "${CalendarContract.Calendars.ACCOUNT_NAME} ASC",
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    out += CalendarInfo(c.getLong(0), c.getString(1) ?: "Calendar", c.getString(2) ?: "", c.getInt(3))
+                }
+            }
+        }
+        out
     }
 
     private fun utcToLocalMidnight(utc: Long, zone: ZoneId): Long =

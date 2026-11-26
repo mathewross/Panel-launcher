@@ -43,6 +43,24 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var appsByKey by mutableStateOf<Map<String, AppEntry>>(emptyMap()); private set
     var now by mutableLongStateOf(System.currentTimeMillis()); private set
     var events by mutableStateOf<List<CalEvent>>(emptyList()); private set
+    var calendars by mutableStateOf<List<com.panel.launcher.data.CalendarInfo>>(emptyList()); private set
+
+    /** Events from the calendars chosen for "Up next" (Settings › Up next calendars). */
+    val upNextEvents: List<CalEvent>
+        get() {
+            val hidden = prefs.upNextHiddenCalendars.toSet()
+            return if (hidden.isEmpty()) events else events.filter { it.calendarId.toString() !in hidden }
+        }
+
+    /** Events for the agenda sheet: everything, unless the agenda is set to follow the same filter. */
+    val agendaEvents: List<CalEvent>
+        get() = if (prefs.filterAgenda) upNextEvents else events
+
+    fun setCalendarInUpNext(id: Long, show: Boolean) {
+        val key = id.toString()
+        prefs.upNextHiddenCalendars =
+            if (show) prefs.upNextHiddenCalendars - key else (prefs.upNextHiddenCalendars + key).distinct()
+    }
     var hasCalendar by mutableStateOf(CalendarRepository.hasPermission(app)); private set
     var weather by mutableStateOf(Weather.fromJson(prefs.weatherCache)); private set
     var weatherLoading by mutableStateOf(false); private set
@@ -130,7 +148,10 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         calendarJob?.cancel()
-        calendarJob = viewModelScope.launch { events = CalendarRepository.upcoming(ctx) }
+        calendarJob = viewModelScope.launch {
+            events = CalendarRepository.upcoming(ctx)
+            calendars = CalendarRepository.calendars(ctx)
+        }
     }
 
     private fun refreshAlarm() {

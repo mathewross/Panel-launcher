@@ -81,6 +81,10 @@ Installing a newer build updates the app in place and keeps your layout.
 - **Dock**: right (Folio), left, or bottom. With the dock at the bottom, weather becomes a
   third box.
 - **Grid**: 3 to 7 columns, icon size 70–130%. Rows scroll, so there are as many as you need.
+- **Dock height**: slide the side dock anywhere from top to bottom.
+- **Up next calendars**: pick which calendars (e.g. personal and work, but not a shared
+  family one) appear in Up next, Glance and the big clock line. The agenda still shows
+  everything unless you turn on *Filter the agenda too*.
 - Show or hide the Up next box, icon roundness (round by default),
   app names on or off, which side the app panel slides from, next alarm on or off.
 - Weather units, city (or device location), and which app the weather box opens.

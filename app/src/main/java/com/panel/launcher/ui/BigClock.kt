@@ -105,7 +105,7 @@ fun BigClock(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier = Modif
                 style = info, fontSize = 16.sp,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = a.weather).padding(4.dp),
             )
-            val next = vm.events.firstOrNull()
+            val next = vm.upNextEvents.firstOrNull()
             val text = when {
                 !vm.hasCalendar -> "Show calendar"
                 next == null -> vm.nextAlarm?.let { "⏰ " + Fmt.shortTime(ctx, it) } ?: "Nothing coming up"

@@ -133,7 +133,7 @@ private fun UpNextBox(vm: LauncherViewModel, a: HeaderActions) {
                     Text("Agenda ›", color = p.subtle, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
                 }
             }
-            val list = upNext(vm.events, 2)
+            val list = upNext(vm.upNextEvents, 2)
             when {
                 !vm.hasCalendar -> Text("Tap to show your calendar events here", color = p.fg, fontSize = 14.sp)
                 list.isEmpty() -> Text("Nothing coming up", color = p.subtle, fontSize = 14.sp)
@@ -200,7 +200,7 @@ private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modi
             Text("📅  Tap to show upcoming events", style = sub, fontSize = 15.sp,
                 modifier = Modifier.clickable(onClick = a.connectCalendar))
         } else {
-            val list = upNext(vm.events, 2)
+            val list = upNext(vm.upNextEvents, 2)
             if (list.isEmpty()) {
                 Text("Nothing coming up", style = sub, fontSize = 15.sp, modifier = Modifier.clickable(onClick = a.agenda))
             }
