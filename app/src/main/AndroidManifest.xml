@@ -13,7 +13,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /> <!-- optional: local weather -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" /> <!-- "Uninstall" menu item -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
-    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />    <!-- swipe down for the shade -->       <!-- optional "use as phone wallpaper" -->
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+    <!-- Optional, off unless you grant it: lets glass blur your system wallpaper (Android only
+         shares the wallpaper image with apps that have "All files access"). -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />    <!-- swipe down for the shade -->       <!-- optional "use as phone wallpaper" -->
 
     <queries>
         <intent>

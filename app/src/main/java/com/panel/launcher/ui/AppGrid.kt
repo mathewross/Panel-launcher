@@ -18,8 +18,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -83,8 +89,8 @@ fun FreeAppGrid(
     var hoverIndex by remember { mutableIntStateOf(-1) }
     var settleKey by remember { mutableStateOf<String?>(null) }
     val settle = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
-    var menuKey by remember { mutableStateOf<String?>(null) }
-    var emptyMenuAt by remember { mutableStateOf<IntOffset?>(null) }
+    val menus = LocalContextMenu.current
+    val gridCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     LaunchedEffect(saved) { if (draggingKey == null) slots = saved }
 
     val showLabels = vm.prefs.showLabels
@@ -111,6 +117,7 @@ fun FreeAppGrid(
                 Modifier
                     .fillMaxWidth()
                     .height(cellH * rows)
+                    .onGloballyPositioned { gridCoords[0] = it }
                     .pointerInput(columns, rows, cellWpx, cellHpx) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
@@ -136,7 +143,10 @@ fun FreeAppGrid(
                                 // Empty cell: long-press shows the Pixel-style home menu.
                                 if (outcome == null && from >= 0) {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    emptyMenuAt = down.position.round()
+                                    gridCoords[0]?.positionInWindow()?.let { o ->
+                                        val at = o + down.position
+                                        menus.show(Rect(at, Size(1f, 1f)), emptySpaceMenu())
+                                    }
                                 }
                                 return@awaitEachGesture
                             }
@@ -172,9 +182,23 @@ fun FreeAppGrid(
                             }
 
                             if (moved < viewConfiguration.touchSlop) {
-                                menuKey = key
                                 draggingKey = null
                                 hoverIndex = -1
+                                val origin = gridCoords[0]?.positionInWindow()
+                                if (origin != null) {
+                                    val o = slotOffset(from)
+                                    val anchor = Rect(Offset(origin.x + o.x, origin.y + o.y), Size(cellWpx, cellHpx))
+                                    val app = byKey[key]
+                                    val folder = vm.folderOf(key)
+                                    val items = if (app != null) homeMenu(vm, app, inDock = false) else listOf(
+                                        MenuAction("Open", Icons.Outlined.FolderOpen) { folder?.let { onOpenFolder(it.id) } },
+                                        MenuAction("Ungroup", Icons.Outlined.RemoveCircleOutline) { folder?.let { vm.dissolveFolder(it.id) } },
+                                    )
+                                    menus.show(anchor, items) {
+                                        if (app != null) AppVisual(app, iconSize, vm.prefs.iconRoundness, showLabels)
+                                        else if (folder != null) FolderVisual(vm, folder, iconSize, showLabels)
+                                    }
+                                }
                                 return@awaitEachGesture
                             }
 
@@ -202,15 +226,6 @@ fun FreeAppGrid(
                         }
                     },
             ) {
-                emptyMenuAt?.let { at ->
-                    Box(Modifier.offset { at }.size(1.dp)) {
-                        DropdownMenu(expanded = true, onDismissRequest = { emptyMenuAt = null }) {
-                            emptySpaceMenu().forEach { a ->
-                                DropdownMenuItem(text = { Text(a.label) }, onClick = { emptyMenuAt = null; a.run() })
-                            }
-                        }
-                    }
-                }
                 // Where the app will land.
                 if (draggingKey != null && hoverIndex >= 0) {
                     Box(
@@ -249,15 +264,6 @@ fun FreeAppGrid(
                         ) {
                             if (app != null) AppVisual(app, iconSize, vm.prefs.iconRoundness, showLabels)
                             else if (folder != null) FolderVisual(vm, folder, iconSize, showLabels)
-                            DropdownMenu(expanded = menuKey == k, onDismissRequest = { menuKey = null }) {
-                                val items = if (app != null) homeMenu(vm, app, inDock = false) else listOf(
-                                    MenuAction("Open") { folder?.let { onOpenFolder(it.id) } },
-                                    MenuAction("Ungroup") { folder?.let { vm.dissolveFolder(it.id) } },
-                                )
-                                items.forEach { a ->
-                                    DropdownMenuItem(text = { Text(a.label) }, onClick = { menuKey = null; a.run() })
-                                }
-                            }
                         }
                     }
                 }

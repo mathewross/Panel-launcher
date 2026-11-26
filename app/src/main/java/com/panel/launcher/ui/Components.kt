@@ -14,13 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
@@ -57,10 +56,8 @@ fun Tile(
 ) {
     val p = LocalTiles.current
     val haptics = LocalHapticFeedback.current
-    var m = modifier
-        .clip(shape)
-        .background(p.bg)
-        .border(0.75.dp, p.border, shape)
+    var m = if (p.glass) modifier.glass(shape, p).clip(shape)
+    else modifier.clip(shape).background(p.bg).border(0.75.dp, p.border, shape)
     if (onClick != null || onLongClick != null) {
         m = m.combinedClickable(
             onClick = { onClick?.invoke() },
@@ -94,9 +91,8 @@ fun AppIcon(app: AppEntry, size: Dp, roundness: Int, modifier: Modifier = Modifi
     )
 }
 
-data class MenuAction(val label: String, val run: () -> Unit)
 
-/** Icon + label that opens on tap and shows a menu on long-press. */
+/** Icon + label that opens on tap and shows the iOS-style menu on long-press. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppCell(
@@ -108,24 +104,23 @@ fun AppCell(
     menu: () -> List<MenuAction>,
     modifier: Modifier = Modifier,
 ) {
-    var open by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
-    Box(modifier) {
-        AppVisual(
-            app, iconSize, roundness, showLabel,
-            Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .combinedClickable(
-                    onClick = onOpen,
-                    onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); open = true },
-                ),
-        )
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            menu().forEach { a ->
-                DropdownMenuItem(text = { Text(a.label) }, onClick = { open = false; a.run() })
-            }
-        }
-    }
+    val menus = LocalContextMenu.current
+    val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    AppVisual(
+        app, iconSize, roundness, showLabel,
+        modifier
+            .onGloballyPositioned { coords[0] = it }
+            .clip(RoundedCornerShape(16.dp))
+            .combinedClickable(
+                onClick = onOpen,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val c = coords[0] ?: return@combinedClickable
+                    menus.show(c.boundsInWindow(), menu()) { AppVisual(app, iconSize, roundness, showLabel) }
+                },
+            ),
+    )
 }
 
 /** Icon with its name underneath, no touch handling. */

@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
         if (vm.prefs.lockPortrait) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         vm.hostView = { window?.decorView }
         setContent {
-            PanelTheme {
+            PanelTheme(pixelFont = vm.prefs.pixelFont) {
                 HomeScreen(vm, homePresses.intValue)
             }
         }

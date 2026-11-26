@@ -80,6 +80,39 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var wallpaperSubject by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null); private set
     var wallpaperStatus by mutableStateOf<String?>(null); private set
 
+    /** Small blurred copy of whichever wallpaper Panel can see, for frosted-glass surfaces. */
+    var glass by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null); private set
+    var canReadSystemWallpaper by mutableStateOf(false); private set
+
+    private var glassKey: String? = null
+
+    private fun refreshGlass() {
+        val allFiles = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R &&
+            android.os.Environment.isExternalStorageManager()
+        val wallpaperId = runCatching {
+            android.app.WallpaperManager.getInstance(ctx).getWallpaperId(android.app.WallpaperManager.FLAG_SYSTEM)
+        }.getOrDefault(0)
+        // Only rebuild when the wallpaper (or our access to it) actually changed.
+        val key = "${System.identityHashCode(wallpaperBitmap)}-$wallpaperId-$allFiles"
+        if (key == glassKey) return
+        glassKey = key
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val source = wallpaperBitmap ?: if (allFiles) runCatching {
+                @Suppress("MissingPermission")
+                val d = android.app.WallpaperManager.getInstance(ctx).drawable
+                (d as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                    ?: d?.let { androidx.core.graphics.drawable.DrawableCompat.wrap(it) }
+                        ?.let { dr -> android.graphics.Bitmap.createBitmap(540, 1170, android.graphics.Bitmap.Config.ARGB_8888)
+                            .also { b -> dr.setBounds(0, 0, 540, 1170); dr.draw(android.graphics.Canvas(b)) } }
+            }.getOrNull() else null
+            val blurred = source?.let { com.panel.launcher.data.GlassSource.from(it).asImageBitmap() }
+            launch(kotlinx.coroutines.Dispatchers.Main) {
+                canReadSystemWallpaper = allFiles
+                glass = blurred
+            }
+        }
+    }
+
     /** True when the wallpaper behind the home screen is light, so text and icons should be dark. */
     private var detectedLight by mutableStateOf(false)
     val lightWallpaper: Boolean
@@ -250,6 +283,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
      * the colour hints Android publishes for the system wallpaper (no permission needed).
      */
     fun detectWallpaperTone() {
+        refreshGlass()
         val own = wallpaperBitmap
         if (own != null) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {

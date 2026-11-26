@@ -3,6 +3,7 @@ package com.panel.launcher.ui
 import android.Manifest
 import android.app.Activity
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import android.content.Intent
 import androidx.compose.animation.core.animateDpAsState
@@ -37,6 +38,20 @@ import com.panel.launcher.data.HeaderStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -183,6 +198,37 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
         }
     }
 
+    // ---- Depth: the home screen blurs and sinks back while the panel, a folder or a menu is open. ----
+    val menuController = remember { ContextMenuController() }
+    val folderT by animateFloatAsState(if (openFolder != null) 1f else 0f, tween(280), label = "folderDepth")
+    val menuT by animateFloatAsState(if (menuController.request != null) 1f else 0f, tween(220), label = "menuDepth")
+    val depth: () -> Float = { maxOf(panel.value, folderT, menuT) }
+    val blurPx = with(density) { 24.dp.toPx() }
+    val depthLayer: androidx.compose.ui.graphics.GraphicsLayerScope.(Float) -> Unit = { extraScale ->
+        val d = depth()
+        val s = extraScale * (1f - 0.05f * d)
+        scaleX = s; scaleY = s
+        renderEffect = if (android.os.Build.VERSION.SDK_INT >= 31 && d > 0.01f) {
+            androidx.compose.ui.graphics.BlurEffect(blurPx * d, blurPx * d, androidx.compose.ui.graphics.TileMode.Decal)
+        } else null
+    }
+    // Blur the phone's own wallpaper too (Android 12+, where the phone supports window blur).
+    LaunchedEffect(Unit) {
+        val w = (ctx as? Activity)?.window ?: return@LaunchedEffect
+        if (android.os.Build.VERSION.SDK_INT < 31) return@LaunchedEffect
+        var lastRadius = -1
+        androidx.compose.runtime.snapshotFlow { depth() }.collect { d ->
+            val radius = (d * 60).toInt()
+            if (radius == lastRadius) return@collect
+            lastRadius = radius
+            runCatching {
+                if (radius > 0) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                w.attributes = w.attributes.apply { blurBehindRadius = radius }
+            }
+        }
+    }
+
     // Keep the home screen upright even with auto-rotate on (Settings › Always portrait).
     val lockPortrait = vm.prefs.lockPortrait
     SideEffect {
@@ -257,6 +303,8 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
         LocalTiles provides paletteFor(vm.prefs.tileStyle, light),
         LocalWallpaperText provides if (light) TextOnLightWallpaper else TextOnDarkWallpaper,
         LocalIconBounds provides { key, rect -> vm.iconBounds[key] = rect },
+        LocalGlass provides vm.glass,
+        LocalContextMenu provides menuController,
     ) {
         Box(Modifier.fillMaxSize().then(panelDragModifier).then(verticalDragModifier)) {
             val dockPos = vm.prefs.dockPosition
@@ -269,15 +317,13 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     it, null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().graphicsLayer {
                         // The wallpaper moves a little with the home zoom, for depth.
-                        val s = 1f + (homeScale.value - 1f) * 0.35f
-                        scaleX = s; scaleY = s
+                        depthLayer(1f + (homeScale.value - 1f) * 0.35f)
                     },
                 )
             }
             Box(
                 Modifier.fillMaxSize().graphicsLayer {
-                    scaleX = homeScale.value
-                    scaleY = homeScale.value
+                    depthLayer(homeScale.value)
                     alpha = homeAlpha.value
                 },
             ) {
@@ -366,6 +412,8 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 },
                 requestCalendar = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) },
             )
+
+            ContextMenuOverlay(menuController)
         }
 
         if (agenda) AgendaSheet(vm) { agenda = false }
@@ -420,14 +468,14 @@ private fun FavoritesGrid(
             iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f),
             emptySpaceMenu = {
                 listOf(
-                    MenuAction("Wallpaper & style") {
+                    MenuAction("Wallpaper & style", Icons.Outlined.Wallpaper) {
                         // On a Pixel this opens Google's Wallpaper & style app.
                         if (!vm.start(ctx, Intent(Intent.ACTION_SET_WALLPAPER))) {
                             vm.start(ctx, Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS))
                         }
                     },
-                    MenuAction("Panel wallpaper photo") { onPickPanelWallpaper() },
-                    MenuAction("Home settings") { onOpenSettings() },
+                    MenuAction("Panel wallpaper photo", Icons.Outlined.Image) { onPickPanelWallpaper() },
+                    MenuAction("Home settings", Icons.Outlined.Settings) { onOpenSettings() },
                 )
             },
             modifier = Modifier.fillMaxSize(),
@@ -452,8 +500,7 @@ private fun Dock(vm: LauncherViewModel) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(32.dp))
-            .background(LocalTiles.current.bg)
+            .surface(RoundedCornerShape(32.dp), LocalTiles.current)
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
@@ -470,15 +517,15 @@ private fun Dock(vm: LauncherViewModel) {
 fun homeMenu(vm: LauncherViewModel, app: AppEntry, inDock: Boolean): List<MenuAction> = buildList {
     if (inDock) {
         val vertical = vm.prefs.dockPosition != DockPosition.BOTTOM
-        add(MenuAction(if (vertical) "Move up" else "Move left") { vm.moveDock(app, -1) })
-        add(MenuAction(if (vertical) "Move down" else "Move right") { vm.moveDock(app, 1) })
-        add(MenuAction("Remove from dock") { vm.toggleDock(app) })
+        add(MenuAction(if (vertical) "Move up" else "Move left", if (vertical) Icons.Outlined.ArrowUpward else Icons.Outlined.ArrowBack) { vm.moveDock(app, -1) })
+        add(MenuAction(if (vertical) "Move down" else "Move right", if (vertical) Icons.Outlined.ArrowDownward else Icons.Outlined.ArrowForward) { vm.moveDock(app, 1) })
+        add(MenuAction("Remove from dock", Icons.Outlined.RemoveCircleOutline) { vm.toggleDock(app) })
     } else {
-        add(MenuAction("Remove from home") { vm.toggleFavorite(app) })
-        if (!vm.isDocked(app)) add(MenuAction("Add to dock") { vm.toggleDock(app) })
+        add(MenuAction("Remove from home", Icons.Outlined.RemoveCircleOutline) { vm.toggleFavorite(app) })
+        if (!vm.isDocked(app)) add(MenuAction("Add to dock", Icons.Outlined.AddCircleOutline) { vm.toggleDock(app) })
     }
-    add(MenuAction("App info") { vm.repo.openAppInfo(app) })
-    add(MenuAction("Uninstall") { vm.repo.uninstall(app) })
+    add(MenuAction("App info", Icons.Outlined.Info) { vm.repo.openAppInfo(app) })
+    add(MenuAction("Uninstall", Icons.Outlined.Delete, destructive = true) { vm.repo.uninstall(app) })
 }
 
 /**
@@ -548,9 +595,7 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?
                     .offset(y = dockTop)
                     .fillMaxWidth()
                     .onSizeChanged { dockH = with(density) { it.height.toDp() } }
-                    .clip(pill)
-                    .background(p.bg)
-                    .border(0.75.dp, p.border, pill)
+                    .surface(pill, p)
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -566,33 +611,42 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?
     }
 }
 
-/** Bottom bar: settings, a search pill that opens the app panel with the keyboard, and an all-apps button. */
+/** Glass for glass-style palettes, a plain filled surface for Light / Dark box styles. */
+fun Modifier.surface(shape: androidx.compose.ui.graphics.Shape, p: TilePalette): Modifier =
+    if (p.glass) this.glass(shape, p).clip(shape)
+    else this.clip(shape).background(p.bg).border(0.75.dp, p.border, shape)
+
+/** Bottom bar: one glass pill holding settings, search and all apps. */
 @Composable
 private fun SearchBar(onSearch: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit) {
     val p = LocalTiles.current
-    Row(
-        Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onSettings) {
-            Icon(Icons.Default.Settings, "Settings", tint = WallpaperText.color.copy(alpha = 0.85f))
-        }
+    Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
         Row(
             Modifier
-                .clip(RoundedCornerShape(50))
-                .background(p.bg)
-                .border(0.75.dp, p.border, RoundedCornerShape(50))
-                .clickable(onClick = onSearch)
-                .padding(horizontal = 26.dp, vertical = 10.dp),
+                .widthIn(max = 340.dp)
+                .fillMaxWidth(0.82f)
+                .height(50.dp)
+                .surface(RoundedCornerShape(50), p)
+                .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Search, null, tint = p.fg, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Search", color = p.fg, fontSize = 15.sp)
-        }
-        IconButton(onClick = onApps) {
-            Icon(Icons.Default.Menu, "All apps", tint = WallpaperText.color.copy(alpha = 0.85f))
+            Box(
+                Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onSettings),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.Settings, "Settings", tint = p.subtle, modifier = Modifier.size(21.dp)) }
+            Row(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(50)).clickable(onClick = onSearch),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Search, null, tint = p.fg, modifier = Modifier.size(19.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Search", color = p.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+            Box(
+                Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onApps),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.Apps, "All apps", tint = p.subtle, modifier = Modifier.size(21.dp)) }
         }
     }
 }

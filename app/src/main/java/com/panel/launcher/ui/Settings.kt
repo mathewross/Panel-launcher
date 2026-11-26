@@ -181,6 +181,34 @@ private fun SettingsBody(
         SwitchRow("Show next alarm", p.showAlarm) { p.showAlarm = it; vm.onResume() }
     }
 
+    Group("Look") {
+        SwitchRow("Pixel font (Google Sans)", p.pixelFont) { p.pixelFont = it }
+        Divider()
+        Text(
+            when {
+                vm.wallpaper != null -> "Frosted glass is using your Panel wallpaper photo."
+                vm.canReadSystemWallpaper -> "Frosted glass is using your phone's wallpaper."
+                else -> "For real frosted glass, Panel needs to see your wallpaper. Either choose your " +
+                    "wallpaper photo in Panel (Big clock & wallpaper, below; you can also set it as the " +
+                    "phone's wallpaper from there), or allow Panel to read the phone's wallpaper. " +
+                    "Android only allows that with \"All files access\"."
+            },
+            color = Subtle, fontSize = 13.sp, modifier = Modifier.padding(16.dp),
+        )
+        if (vm.wallpaper == null && !vm.canReadSystemWallpaper && android.os.Build.VERSION.SDK_INT >= 30) {
+            Divider()
+            ActionRow("Use phone wallpaper for glass", "Opens Android's \"All files access\" page for Panel", Blue) {
+                vm.start(
+                    ctx,
+                    Intent(
+                        SystemSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:${ctx.packageName}"),
+                    ),
+                )
+            }
+        }
+    }
+
     Group("Time & date box numbers") {
         SliderRow("Size", p.boxNumberScale, 70..150, "${p.boxNumberScale}%") { p.boxNumberScale = it }
         Divider()

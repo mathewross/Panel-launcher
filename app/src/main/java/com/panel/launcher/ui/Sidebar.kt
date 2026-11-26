@@ -42,8 +42,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -114,7 +128,7 @@ fun BoxScope.Sidebar(
             Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = progress() }
-                .background(Color.Black.copy(alpha = 0.4f))
+                .background(Color.Black.copy(alpha = 0.22f))
                 .then(drag)
                 .pointerInput(Unit) { detectTapGestures { onClose() } },
         )
@@ -188,119 +202,153 @@ private fun SidebarContent(
         onClose()
     }
 
-    val shape = if (left) RoundedCornerShape(topEnd = 30.dp, bottomEnd = 30.dp)
-    else RoundedCornerShape(topStart = 30.dp, bottomStart = 30.dp)
+    val shape = if (left) RoundedCornerShape(topEnd = 32.dp, bottomEnd = 32.dp)
+    else RoundedCornerShape(topStart = 32.dp, bottomStart = 32.dp)
+    var activeLetter by remember { mutableStateOf<String?>(null) }
 
     Column(
         Modifier
             .fillMaxHeight()
             .fillMaxWidth(0.86f)
             .widthIn(max = 420.dp)
+            .shadow(30.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
             .clip(shape)
-            .background(Color(0xF0141416))
+            .background(Color(0xE0151517))
+            .border(0.75.dp, Color(0x1AFFFFFF), shape)
             .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
             .navigationBarsPadding()
             .imePadding()
-            .padding(start = 14.dp, end = 6.dp, top = 12.dp),
+            .padding(start = 16.dp, end = 6.dp, top = 14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFF2C2C2E))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Default.Search, null, tint = Color(0xFF9A9AA0))
-                Spacer(Modifier.width(8.dp))
-                Box(Modifier.weight(1f)) {
-                    if (query.isEmpty()) Text("Search apps", color = Color(0xFF8E8E93), fontSize = 16.sp)
-                    BasicTextField(
-                        value = query, onValueChange = { query = it }, singleLine = true,
-                        textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-                        cursorBrush = SolidColor(Color(0xFF0A84FF)),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = {
-                            (rows.firstOrNull { it is SideRow.App } as? SideRow.App)?.let { open(it.app) }
-                        }),
-                        modifier = Modifier.fillMaxWidth().focusRequester(searchFocus),
-                    )
-                }
-            }
-            IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.White) }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 6.dp)) {
+            Text("Apps", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Box(
+                Modifier.size(38.dp).clip(CircleShape).background(Color(0x1FFFFFFF)).clickable(onClick = onSettings),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.Settings, "Settings", tint = Color.White, modifier = Modifier.size(20.dp)) }
         }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.weight(1f)) {
-            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
-                itemsIndexed(rows, key = { _, r ->
-                    when (r) {
-                        is SideRow.Header -> "h_" + r.letter
-                        is SideRow.App -> r.app.key
-                        SideRow.Recents -> "recents"
-                    }
-                }) { _, r ->
-                    when (r) {
-                        is SideRow.Header -> Text(
-                            r.letter, color = Color(0xFF8E8E93), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 4.dp),
-                        )
-                        is SideRow.App -> SidebarApp(vm, r.app, onAddToFolder) { open(r.app) }
-                        SideRow.Recents -> RecentRow(vm) { open(it) }
-                    }
-                }
-                item { Spacer(Modifier.height(16.dp)) }
-            }
-            if (query.isBlank() && letterIndex.size > 1) {
-                AlphabetScrubber(letterIndex.keys.toList()) { letter ->
-                    letterIndex[letter]?.let { scope.launch { listState.scrollToItem(it) } }
-                }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            Modifier.padding(end = 10.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x1FFFFFFF))
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Search, null, tint = Color(0xFF9A9AA0), modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.weight(1f)) {
+                if (query.isEmpty()) Text("Search", color = Color(0xFF8E8E93), fontSize = 16.sp)
+                BasicTextField(
+                    value = query, onValueChange = { query = it }, singleLine = true,
+                    textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontFamily = LocalTextStyle.current.fontFamily),
+                    cursorBrush = SolidColor(Color(0xFF0A84FF)),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = {
+                        (rows.firstOrNull { it is SideRow.App } as? SideRow.App)?.let { open(it.app) }
+                    }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(searchFocus),
+                )
             }
         }
+        Spacer(Modifier.height(6.dp))
+        Box(Modifier.weight(1f)) {
+            Row(Modifier.fillMaxSize()) {
+                LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+                    itemsIndexed(rows, key = { _, r ->
+                        when (r) {
+                            is SideRow.Header -> "h_" + r.letter
+                            is SideRow.App -> r.app.key
+                            SideRow.Recents -> "recents"
+                        }
+                    }) { _, r ->
+                        when (r) {
+                            is SideRow.Header -> Text(
+                                r.letter, color = Color.White.copy(alpha = 0.45f), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 2.dp),
+                            )
+                            is SideRow.App -> SidebarApp(vm, r.app, onAddToFolder) { open(r.app) }
+                            SideRow.Recents -> RecentRow(vm) { open(it) }
+                        }
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+                if (query.isBlank() && letterIndex.size > 1) {
+                    AlphabetScrubber(letterIndex.keys.toList(), onActive = { activeLetter = it }) { letter ->
+                        letterIndex[letter]?.let { scope.launch { listState.scrollToItem(it) } }
+                    }
+                }
+            }
+            // Big letter while scrubbing the alphabet, iOS-style.
+            activeLetter?.let { l ->
+                Box(
+                    Modifier.align(Alignment.Center).size(84.dp).clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xCC2C2C2E)),
+                    contentAlignment = Alignment.Center,
+                ) { Text(l, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.SemiBold) }
+            }
+        }
+    }
+}
+
+/** One app in the panel list (also used as the lifted preview in its long-press menu). */
+@Composable
+private fun SidebarRowVisual(vm: LauncherViewModel, app: AppEntry, modifier: Modifier = Modifier) {
+    Row(modifier.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        AppIcon(app, 44.dp, vm.prefs.iconRoundness)
+        Spacer(Modifier.width(14.dp))
+        Text(app.label, color = Color.White, fontSize = 16.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SidebarApp(vm: LauncherViewModel, app: AppEntry, onAddToFolder: (AppEntry) -> Unit, onOpen: () -> Unit) {
-    var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
-    Box {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .combinedClickable(
-                    onClick = onOpen,
-                    onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); menu = true },
-                )
-                .padding(horizontal = 6.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AppIcon(app, 42.dp, vm.prefs.iconRoundness)
-            Spacer(Modifier.width(14.dp))
-            Text(app.label, color = Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            val items = buildList<Pair<String, () -> Unit>> {
-                add((if (vm.isFavorite(app)) "Remove from home" else "Add to home") to { vm.toggleFavorite(app) })
-                add((if (vm.isDocked(app)) "Remove from dock" else "Add to dock") to { vm.toggleDock(app) })
-                add("Add to folder…" to { onAddToFolder(app) })
-                add("App info" to { vm.repo.openAppInfo(app) })
-                add("Uninstall" to { vm.repo.uninstall(app) })
-            }
-            items.forEach { (label, run) ->
-                DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; run() })
-            }
-        }
-    }
+    val menus = LocalContextMenu.current
+    val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    SidebarRowVisual(
+        vm, app,
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { coords[0] = it }
+            .clip(RoundedCornerShape(14.dp))
+            .combinedClickable(
+                onClick = onOpen,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val c = coords[0] ?: return@combinedClickable
+                    val items = listOf(
+                        if (vm.isFavorite(app)) MenuAction("Remove from home", Icons.Outlined.RemoveCircleOutline) { vm.toggleFavorite(app) }
+                        else MenuAction("Add to home", Icons.Outlined.Home) { vm.toggleFavorite(app) },
+                        if (vm.isDocked(app)) MenuAction("Remove from dock", Icons.Outlined.RemoveCircleOutline) { vm.toggleDock(app) }
+                        else MenuAction("Add to dock", Icons.Outlined.AddCircleOutline) { vm.toggleDock(app) },
+                        MenuAction("Add to folder…", Icons.Outlined.CreateNewFolder) { onAddToFolder(app) },
+                        MenuAction("App info", Icons.Outlined.Info) { vm.repo.openAppInfo(app) },
+                        MenuAction("Uninstall", Icons.Outlined.Delete, destructive = true) { vm.repo.uninstall(app) },
+                    )
+                    val w = c.size.width
+                    menus.show(c.boundsInWindow(), items) {
+                        SidebarRowVisual(
+                            vm, app,
+                            Modifier.width(with(androidx.compose.ui.platform.LocalDensity.current) { w.toDp() })
+                                .clip(RoundedCornerShape(14.dp)).background(Color(0xF2242426)),
+                        )
+                    }
+                },
+            ),
+    )
 }
 
 /** The last few apps opened through Panel. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecentRow(vm: LauncherViewModel, onOpen: (AppEntry) -> Unit) {
-    Column(Modifier.padding(top = 4.dp, bottom = 4.dp)) {
+    Column(
+        Modifier.padding(top = 8.dp, bottom = 4.dp, end = 10.dp).clip(RoundedCornerShape(20.dp))
+            .background(Color(0x14FFFFFF)).padding(vertical = 8.dp),
+    ) {
         Text(
-            "Recent", color = Color(0xFF8E8E93), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 6.dp, bottom = 4.dp),
+            "Recent", color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 14.dp, bottom = 2.dp),
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             vm.recentApps(5).forEach { app ->
@@ -317,7 +365,7 @@ private fun RecentRow(vm: LauncherViewModel, onOpen: (AppEntry) -> Unit) {
 }
 
 @Composable
-private fun AlphabetScrubber(letters: List<String>, onLetter: (String) -> Unit) {
+private fun AlphabetScrubber(letters: List<String>, onActive: (String?) -> Unit, onLetter: (String) -> Unit) {
     var height by remember { mutableIntStateOf(1) }
     var last by remember { mutableStateOf("") }
     val haptics = LocalHapticFeedback.current
@@ -327,6 +375,7 @@ private fun AlphabetScrubber(letters: List<String>, onLetter: (String) -> Unit) 
         if (l != last) {
             last = l
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onActive(l)
             onLetter(l)
         }
     }
@@ -336,13 +385,17 @@ private fun AlphabetScrubber(letters: List<String>, onLetter: (String) -> Unit) 
             .width(24.dp)
             .padding(vertical = 8.dp)
             .onSizeChanged { height = it.height.coerceAtLeast(1) }
-            .pointerInput(letters) { detectTapGestures { last = ""; pick(it.y) } }
+            .pointerInput(letters) { detectTapGestures { last = ""; pick(it.y); onActive(null) } }
             .pointerInput(letters) {
-                detectVerticalDragGestures(onDragStart = { last = ""; pick(it.y) }) { change, _ -> pick(change.position.y) }
+                detectVerticalDragGestures(
+                    onDragStart = { last = ""; pick(it.y) },
+                    onDragEnd = { onActive(null) },
+                    onDragCancel = { onActive(null) },
+                ) { change, _ -> pick(change.position.y) }
             },
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        letters.forEach { Text(it, color = Color(0xFF0A84FF), fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
+        letters.forEach { Text(it, color = Color(0xFF0A84FF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
     }
 }

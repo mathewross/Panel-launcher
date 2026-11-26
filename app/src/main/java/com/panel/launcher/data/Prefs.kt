@@ -66,6 +66,7 @@ class Prefs(context: Context) {
     var showRecents by bool("show_recents", true)
     var hideStatusBar by bool("hide_status_bar", false)
     var lockPortrait by bool("lock_portrait", true)
+    var pixelFont by bool("pixel_font", true)
     var swipeDownShade by bool("swipe_down_shade", true)
     var swipeUpPanel by bool("swipe_up_panel", true)
     var openAnimation by bool("open_animation", true)
