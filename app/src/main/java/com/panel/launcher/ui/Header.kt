@@ -50,6 +50,7 @@ fun Header(vm: LauncherViewModel, actions: HeaderActions, modifier: Modifier = M
     when (vm.prefs.headerStyle) {
         HeaderStyle.BOXES -> BoxesHeader(vm, actions, modifier)
         HeaderStyle.GLANCE -> GlanceHeader(vm, actions, modifier)
+        HeaderStyle.CLOCK -> Unit // drawn full-width by HomeScreen, between wallpaper and subject
     }
 }
 

@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
-enum class HeaderStyle { BOXES, GLANCE }
+enum class HeaderStyle { BOXES, GLANCE, CLOCK }
 enum class TileStyle { GLASS, LIGHT, DARK }
 enum class DockPosition { RIGHT, LEFT, BOTTOM }
 
@@ -57,6 +57,16 @@ class Prefs(context: Context) {
     var iconRoundness by int("icon_roundness", 50) // percent of icon size; 50 = circle
     private var dockPositionName by string("dock_position", DockPosition.RIGHT.name)
     var showUpNext by bool("show_up_next", true)
+    var iconScale by int("icon_scale", 100) // percent
+
+    // Big clock (iOS lock-screen style)
+    var clockSize by int("clock_size", 120)        // sp
+    var clockStretch by int("clock_stretch", 150)  // percent of normal height
+    var clockOffset by int("clock_offset", 10)     // dp down from the top
+    var clockOpacity by int("clock_opacity", 85)   // percent
+    var clockColor by int("clock_color", 0xFFFFFFFF.toInt())
+    var clockFont by string("clock_font", "condensed")
+    var depthEffect by bool("depth_effect", true)
     var showLabels by bool("show_labels", true)
     var sidebarOnLeft by bool("sidebar_left", false)
     var showAlarm by bool("show_alarm", true)

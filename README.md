@@ -71,15 +71,32 @@ Installing a newer build updates the app in place and keeps your layout.
 
 ### Settings
 
-- **Top section**: *Boxes* (Folio-style tiles) or *Glance* (Niagara-style large clock with the
-  date, weather and next events as text).
+- **Top section**: *Boxes* (Folio-style tiles), *Glance* (Niagara-style large clock with the
+  date, weather and next events as text), or *Big clock* (iOS lock-screen style, below).
 - **Box style**: Glass, Light or Dark.
 - **Dock**: right (Folio), left, or bottom. With the dock at the bottom, weather becomes a
   third box.
-- Show or hide the Up next box, number of columns, icon roundness (round by default),
+- **Grid**: 3 to 7 columns, icon size 70–130%. Rows scroll, so there are as many as you need.
+- Show or hide the Up next box, icon roundness (round by default),
   app names on or off, which side the app panel slides from, next alarm on or off.
 - Weather units, city (or device location), and which app the weather box opens.
 - Which apps the clock and calendar open (defaults to the system ones).
+
+### Big clock with depth effect
+
+Like the iOS lock screen: a huge clock that the subject of your wallpaper stands in front of.
+
+1. Settings › Big clock & wallpaper › **Choose wallpaper photo** (Android's photo picker, so
+   no storage permission is needed).
+2. Panel cuts out the photo's subject on the phone itself with Google's ML Kit (the model
+   comes from Google Play services; nothing is uploaded).
+3. Set **Top section** to **Big clock**, then adjust the clock's size, height, position,
+   opacity, font and colour until the subject overlaps it the way you like.
+
+Panel draws the photo, then the clock, then the cut-out subject. That's why the effect needs a
+photo chosen inside Panel. It can't read the system wallpaper without broad storage access.
+*Also use as phone wallpaper* puts the same photo on your lock screen, but the lock screen
+clock itself belongs to Android and can't be changed by an app.
 
 ## Signing key for updates
 

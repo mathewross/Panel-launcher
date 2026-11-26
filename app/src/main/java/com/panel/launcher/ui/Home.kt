@@ -3,7 +3,13 @@ package com.panel.launcher.ui
 import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import com.panel.launcher.data.HeaderStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
@@ -89,6 +95,10 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
         else { vm.toast("No location — type your city in Settings › Weather instead"); settings = true }
     }
 
+    val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let(vm::importWallpaper)
+    }
+
     val actions = HeaderActions(
         clock = { if (!vm.openClock(ctx)) picker = PickTarget.CLOCK },
         calendar = { if (!vm.openCalendar(ctx)) picker = PickTarget.CALENDAR },
@@ -123,6 +133,30 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 },
         ) {
             val dockPos = vm.prefs.dockPosition
+            val bigClock = vm.prefs.headerStyle == HeaderStyle.CLOCK
+            var clockHeight by remember { mutableIntStateOf(0) }
+
+            // Layer 1: Panel's own wallpaper photo, if one is chosen (otherwise the system wallpaper shows through).
+            vm.wallpaper?.let {
+                Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            // Layer 2: the big clock.
+            if (bigClock) {
+                BigClock(
+                    vm, actions,
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 14.dp)
+                        .onSizeChanged { clockHeight = it.height },
+                )
+            }
+            // Layer 3: the photo's subject, cut out and drawn over the clock (depth effect).
+            val subject = vm.wallpaperSubject
+            if (bigClock && vm.prefs.depthEffect && subject != null && vm.wallpaper != null) {
+                Image(subject, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            // Layer 4: everything you touch.
             Column(
                 Modifier
                     .fillMaxSize()
@@ -131,6 +165,9 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     .padding(horizontal = 16.dp),
             ) {
                 Spacer(Modifier.height(14.dp))
+                if (bigClock) {
+                    Spacer(Modifier.height(with(density) { clockHeight.toDp() } + 8.dp))
+                }
                 Row(Modifier.weight(1f)) {
                     if (dockPos == DockPosition.LEFT) {
                         SideRail(vm, actions)
@@ -165,6 +202,9 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 onClose = { settings = false },
                 onPick = { picker = it },
                 requestLocation = { locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
+                pickWallpaper = {
+                    wallpaperPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
                 requestCalendar = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) },
             )
         }
@@ -229,7 +269,8 @@ private fun FavoritesGrid(vm: LauncherViewModel, onOpenSidebar: () -> Unit, modi
         items(favs, key = { it.key }) { app ->
             Box(contentAlignment = Alignment.Center) {
                 AppCell(
-                    app = app, iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM), roundness = vm.prefs.iconRoundness,
+                    app = app,
+                    iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f), roundness = vm.prefs.iconRoundness,
                     showLabel = vm.prefs.showLabels, onOpen = { vm.launch(app) },
                     menu = { homeMenu(vm, app, inDock = false) },
                 )

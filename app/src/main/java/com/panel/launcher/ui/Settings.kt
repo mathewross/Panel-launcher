@@ -55,6 +55,9 @@ import com.panel.launcher.data.HeaderStyle
 import com.panel.launcher.data.TileStyle
 import com.panel.launcher.data.WeatherRepository
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
 
 private val Subtle = Color(0xFF9A9AA0)
 private val Blue = Color(0xFF0A84FF)
@@ -67,6 +70,7 @@ fun BoxScope.SettingsScreen(
     onPick: (PickTarget) -> Unit,
     requestLocation: () -> Unit,
     requestCalendar: () -> Unit,
+    pickWallpaper: () -> Unit,
 ) {
     AnimatedVisibility(
         visible,
@@ -81,7 +85,7 @@ fun BoxScope.SettingsScreen(
                 TextButton(onClick = onClose) { Text("Done", color = Blue, fontSize = 17.sp) }
             }
             Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-                SettingsBody(vm, onPick, requestLocation, requestCalendar)
+                SettingsBody(vm, onPick, requestLocation, requestCalendar, pickWallpaper)
             }
         }
     }
@@ -93,6 +97,7 @@ private fun SettingsBody(
     onPick: (PickTarget) -> Unit,
     requestLocation: () -> Unit,
     requestCalendar: () -> Unit,
+    pickWallpaper: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val p = vm.prefs
@@ -110,18 +115,20 @@ private fun SettingsBody(
     }
 
     Group("Home screen") {
-        ChoiceRow("Top section", listOf("Boxes" to HeaderStyle.BOXES, "Glance" to HeaderStyle.GLANCE), p.headerStyle) { p.headerStyle = it }
+        ChoiceRow(
+            "Top section",
+            listOf("Boxes" to HeaderStyle.BOXES, "Glance" to HeaderStyle.GLANCE, "Big clock" to HeaderStyle.CLOCK),
+            p.headerStyle,
+        ) { p.headerStyle = it }
         Divider()
         ChoiceRow("Box style", listOf("Glass" to TileStyle.GLASS, "Light" to TileStyle.LIGHT, "Dark" to TileStyle.DARK), p.tileStyle) { p.tileStyle = it }
         Divider()
-        ChoiceRow("Columns", listOf("3" to 3, "4" to 4, "5" to 5), p.columns) { p.columns = it }
+        SliderRow("Grid columns", p.columns, 3..7, "${p.columns} across", steps = 3) { p.columns = it }
         Divider()
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Text("Icon roundness", color = Color.White, fontSize = 16.sp)
-            Slider(
-                value = p.iconRoundness.toFloat(), onValueChange = { p.iconRoundness = it.toInt() },
-                valueRange = 0f..50f,
-            )
+        SliderRow("Icon size", p.iconScale, 70..130, "${p.iconScale}%") { p.iconScale = it }
+        Divider()
+        SliderRow("Icon roundness", p.iconRoundness, 0..50, if (p.iconRoundness >= 50) "Circle" else "${p.iconRoundness}%") {
+            p.iconRoundness = it
         }
         Divider()
         SwitchRow("Show app names", p.showLabels) { p.showLabels = it }
@@ -137,6 +144,62 @@ private fun SettingsBody(
         ChoiceRow("App panel slides from", listOf("Left" to true, "Right" to false), p.sidebarOnLeft) { p.sidebarOnLeft = it }
         Divider()
         SwitchRow("Show next alarm", p.showAlarm) { p.showAlarm = it; vm.onResume() }
+    }
+
+    Group("Big clock & wallpaper") {
+        Text(
+            "Pick a photo and Panel cuts out its subject so it can sit in front of the clock, " +
+                "like the iOS lock screen. Choose \"Big clock\" as the top section to see it.",
+            color = Subtle, fontSize = 13.sp, modifier = Modifier.padding(16.dp),
+        )
+        Divider()
+        ActionRow(
+            if (vm.wallpaper == null) "Choose wallpaper photo" else "Change wallpaper photo",
+            vm.wallpaperStatus ?: if (vm.wallpaper == null) "Uses the photo picker — no storage permission"
+            else if (vm.wallpaperSubject != null) "Depth effect ready" else "No subject cut-out",
+            Blue, pickWallpaper,
+        )
+        if (vm.wallpaper != null) {
+            Divider()
+            SwitchRow("Depth effect", p.depthEffect) { p.depthEffect = it }
+            Divider()
+            ActionRow("Also use as phone wallpaper", "Sets it for the home and lock screen", Blue) { vm.useAsSystemWallpaper() }
+            Divider()
+            ActionRow("Remove photo", "Go back to your phone's wallpaper", Color(0xFFFF453A)) { vm.clearWallpaper() }
+        }
+        Divider()
+        SliderRow("Clock size", p.clockSize, 60..200, "${p.clockSize}") { p.clockSize = it }
+        Divider()
+        SliderRow("Clock height", p.clockStretch, 100..220, "${p.clockStretch}%") { p.clockStretch = it }
+        Divider()
+        SliderRow("Clock position", p.clockOffset, 0..260, "${p.clockOffset}") { p.clockOffset = it }
+        Divider()
+        SliderRow("Clock opacity", p.clockOpacity, 30..100, "${p.clockOpacity}%") { p.clockOpacity = it }
+        Divider()
+        ChoiceRow("Font", ClockFonts.map { it.second to it.first }, p.clockFont) { p.clockFont = it }
+        Divider()
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Colour", color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            ClockColors.forEach { (argb, name) ->
+                val selected = p.clockColor == argb
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .padding(start = 8.dp)
+                        .size(28.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color(argb))
+                        .border(
+                            if (selected) 2.5.dp else 1.dp,
+                            if (selected) Blue else Color(0xFF48484A),
+                            androidx.compose.foundation.shape.CircleShape,
+                        )
+                        .clickable { p.clockColor = argb },
+                )
+            }
+        }
     }
 
     Group("Weather") {
@@ -236,6 +299,29 @@ private fun ActionRow(title: String, subtitle: String?, titleColor: Color?, onCl
 }
 
 @Composable
+private fun SliderRow(
+    title: String,
+    value: Int,
+    range: IntRange,
+    label: String,
+    steps: Int = 0,
+    onChange: (Int) -> Unit,
+) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row {
+            Text(title, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            Text(label, color = Subtle, fontSize = 14.sp)
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onChange(it.roundToInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            steps = steps,
+        )
+    }
+}
+
+@Composable
 private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -248,11 +334,7 @@ private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Un
 
 @Composable
 private fun <T> ChoiceRow(title: String, options: List<Pair<String, T>>, current: T, onChange: (T) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+    val chips = @Composable {
         Row(
             Modifier.clip(RoundedCornerShape(9.dp)).background(Color(0xFF2C2C2E)).padding(2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -271,6 +353,22 @@ private fun <T> ChoiceRow(title: String, options: List<Pair<String, T>>, current
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                 )
             }
+        }
+    }
+    if (options.size > 3) {
+        // Too many to sit beside the title: stack them underneath.
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Text(title, color = Color.White, fontSize = 16.sp)
+            Spacer(Modifier.height(8.dp))
+            chips()
+        }
+    } else {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            chips()
         }
     }
 }

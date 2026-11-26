@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.panel.launcher.data.AppEntry
@@ -48,6 +49,12 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var weatherError by mutableStateOf<String?>(null); private set
     var nextAlarm by mutableStateOf<Long?>(null); private set
 
+    // Custom wallpaper + subject cut-out for the depth-effect clock
+    private var wallpaperBitmap: android.graphics.Bitmap? = null
+    var wallpaper by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null); private set
+    var wallpaperSubject by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null); private set
+    var wallpaperStatus by mutableStateOf<String?>(null); private set
+
     private val appsCallback: LauncherApps.Callback
     private var calendarJob: Job? = null
     private val calendarObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -56,6 +63,12 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     private var observingCalendar = false
 
     init {
+        viewModelScope.launch {
+            val (w, f) = com.panel.launcher.data.CustomWallpaper.load(ctx)
+            wallpaperBitmap = w
+            wallpaper = w?.asImageBitmap()
+            wallpaperSubject = f?.asImageBitmap()
+        }
         refreshApps()
         appsCallback = repo.watch { refreshApps() }
         viewModelScope.launch {
@@ -149,6 +162,43 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         prefs.cityLon = place.lon.toString()
         refreshWeather(force = true)
         return null
+    }
+
+    // ---------- Custom wallpaper ----------
+
+    fun importWallpaper(uri: Uri) {
+        viewModelScope.launch {
+            wallpaperStatus = "Loading photo…"
+            val bmp = runCatching { com.panel.launcher.data.CustomWallpaper.import(ctx, uri) }.getOrElse {
+                wallpaperStatus = "Couldn't open that photo"
+                return@launch
+            }
+            wallpaperBitmap = bmp
+            wallpaper = bmp.asImageBitmap()
+            wallpaperSubject = null
+            wallpaperStatus = "Finding the subject for the depth effect…"
+            val fg = runCatching { com.panel.launcher.data.CustomWallpaper.segment(ctx, bmp) }.getOrNull()
+            wallpaperSubject = fg?.asImageBitmap()
+            wallpaperStatus = if (fg != null) "Depth effect ready"
+            else "No clear subject found — the clock will sit on top of the photo"
+        }
+    }
+
+    fun clearWallpaper() {
+        com.panel.launcher.data.CustomWallpaper.clear(ctx)
+        wallpaperBitmap = null
+        wallpaper = null
+        wallpaperSubject = null
+        wallpaperStatus = null
+    }
+
+    fun useAsSystemWallpaper() {
+        val bmp = wallpaperBitmap ?: return
+        viewModelScope.launch {
+            runCatching { com.panel.launcher.data.CustomWallpaper.setAsSystemWallpaper(ctx, bmp) }
+                .onSuccess { toast("Set as phone wallpaper") }
+                .onFailure { toast("Couldn't set wallpaper") }
+        }
     }
 
     // ---------- Home / dock editing ----------
