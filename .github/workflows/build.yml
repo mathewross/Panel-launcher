@@ -1,0 +1,75 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY_SECRET: ${{ secrets.PANEL_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Signing key: uses the PANEL_KEYSTORE_BASE64 / PANEL_KEYSTORE_PASSWORD repository secrets
+      # if you add them; otherwise a key is generated once and kept in the Actions cache.
+      - name: Restore cached signing key
+        if: ${{ env.HAS_KEY_SECRET != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.panel-signing
+          key: panel-signing-key-v1
+
+      - name: Prepare signing key
+        env:
+          KEY_B64: ${{ secrets.PANEL_KEYSTORE_BASE64 }}
+          KEY_PASS: ${{ secrets.PANEL_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p ~/.panel-signing
+          if [ -n "$KEY_B64" ]; then
+            echo "$KEY_B64" | base64 -d > ~/.panel-signing/panel.keystore
+            echo "$KEY_PASS" > ~/.panel-signing/pass
+          elif [ ! -f ~/.panel-signing/panel.keystore ]; then
+            openssl rand -hex 16 > ~/.panel-signing/pass
+            keytool -genkeypair -keystore ~/.panel-signing/panel.keystore -alias panel \
+              -keyalg RSA -keysize 2048 -validity 36500 -dname "CN=Panel Launcher" \
+              -storepass "$(cat ~/.panel-signing/pass)" -keypass "$(cat ~/.panel-signing/pass)"
+          fi
+          echo "PANEL_KEYSTORE=$HOME/.panel-signing/panel.keystore" >> "$GITHUB_ENV"
+          echo "::add-mask::$(cat ~/.panel-signing/pass)"
+          echo "PANEL_KEYSTORE_PASSWORD=$(cat ~/.panel-signing/pass)" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk Panel-launcher.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Panel-launcher
+          path: Panel-launcher.apk
+
+      - name: Publish to the "Latest build" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build
+          name: Latest build
+          prerelease: true
+          body: |
+            Built from ${{ github.sha }} on ${{ github.ref_name }}.
+            On your phone, download **Panel-launcher.apk** below and open it to install.
+          files: Panel-launcher.apk
