@@ -123,6 +123,12 @@ private fun SettingsBody(
         Divider()
         ChoiceRow("Box style", listOf("Glass" to TileStyle.GLASS, "Light" to TileStyle.LIGHT, "Dark" to TileStyle.DARK), p.tileStyle) { p.tileStyle = it }
         Divider()
+        ChoiceRow(
+            "Text on wallpaper",
+            listOf("Auto" to "auto", "Dark text" to "light", "White text" to "dark"),
+            p.wallpaperTone,
+        ) { p.wallpaperTone = it }
+        Divider()
         SliderRow("Grid columns", p.columns, 3..7, "${p.columns} across", steps = 3) { p.columns = it }
         Divider()
         SliderRow("Icon size", p.iconScale, 70..130, "${p.iconScale}%") { p.iconScale = it }
@@ -355,7 +361,7 @@ private fun <T> ChoiceRow(title: String, options: List<Pair<String, T>>, current
             }
         }
     }
-    if (options.size > 3) {
+    if (options.size > 3 || options.sumOf { it.first.length } > 18) {
         // Too many to sit beside the title: stack them underneath.
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
             Text(title, color = Color.White, fontSize = 16.sp)

@@ -52,6 +52,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -86,29 +88,41 @@ private fun letterOf(label: String): String {
     return if (c.isLetter()) c.toString() else "#"
 }
 
-/** Slide-in side panel with every app, A–Z, plus search. */
+/**
+ * Slide-in side panel with every app, A–Z, plus search. [progress] (0 closed … 1 open) is read
+ * only while drawing, so it can follow the finger every frame without recomposing.
+ */
 @Composable
 fun BoxScope.Sidebar(
-    visible: Boolean,
+    progress: () -> Float,
     vm: LauncherViewModel,
     focusSearch: Boolean,
+    drag: Modifier,
     onClose: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val left = vm.prefs.sidebarOnLeft
-    AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut()) {
+    val shown by remember { derivedStateOf { progress() > 0.001f } }
+    if (shown) {
         Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f))
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = progress() }
+                .background(Color.Black.copy(alpha = 0.4f))
+                .then(drag)
                 .pointerInput(Unit) { detectTapGestures { onClose() } },
         )
     }
-    AnimatedVisibility(
-        visible,
-        modifier = Modifier.align(if (left) Alignment.CenterStart else Alignment.CenterEnd),
-        enter = slideInHorizontally(tween(260)) { if (left) -it else it },
-        exit = slideOutHorizontally(tween(220)) { if (left) -it else it },
+    // Always composed (just off-screen when closed) so it's instantly ready to slide in.
+    Box(
+        Modifier
+            .align(if (left) Alignment.CenterStart else Alignment.CenterEnd)
+            .graphicsLayer {
+                translationX = (1f - progress()) * (size.width + 40f) * (if (left) -1f else 1f)
+            }
+            .then(drag),
     ) {
-        SidebarContent(vm, left, visible, focusSearch, onClose, onSettings)
+        SidebarContent(vm, left, shown, focusSearch, onClose, onSettings)
     }
 }
 
@@ -176,13 +190,6 @@ private fun SidebarContent(
             .widthIn(max = 420.dp)
             .clip(shape)
             .background(Color(0xF0141416))
-            .pointerInput(left) {
-                val threshold = with(density) { 70.dp.toPx() }
-                var total = 0f
-                detectHorizontalDragGestures(onDragStart = { total = 0f }, onDragEnd = {
-                    if ((left && total < -threshold) || (!left && total > threshold)) onClose()
-                }) { _, amount -> total += amount }
-            }
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()

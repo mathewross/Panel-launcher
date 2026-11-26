@@ -1,6 +1,19 @@
 package com.panel.launcher.ui
 
 import android.Manifest
+import android.app.Activity
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -71,19 +84,71 @@ import com.panel.launcher.data.WeatherRepository
 @Composable
 fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     val ctx = LocalContext.current
-    var sidebar by rememberSaveable { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
     var agenda by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf<PickTarget?>(null) }
     var focusSearch by remember { mutableStateOf(false) }
 
+    // ---- App panel: 0 = closed, 1 = open. Follows your finger while you swipe. ----
+    val scope = rememberCoroutineScope()
+    val panel = remember { Animatable(0f) }
+    val left = vm.prefs.sidebarOnLeft
+    val density = LocalDensity.current
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val panelWidthPx = with(density) { (screenWidthDp * 0.86f).coerceAtMost(420f).dp.toPx() }
+    val panelSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 500f)
+    val openPanel: (Boolean) -> Unit = { search ->
+        focusSearch = search
+        scope.launch { panel.animateTo(1f, panelSpring) }
+    }
+    val closePanel: () -> Unit = {
+        focusSearch = false
+        scope.launch { panel.animateTo(0f, panelSpring) }
+    }
+    val panelDrag = rememberDraggableState { delta ->
+        val change = (if (left) delta else -delta) / panelWidthPx
+        scope.launch { panel.snapTo((panel.value + change).coerceIn(0f, 1f)) }
+    }
+    val settlePanel: suspend (Float) -> Unit = { velocity ->
+        val v = (if (left) velocity else -velocity) / panelWidthPx // panel-widths per second, + = opening
+        val target = when {
+            v > 1.2f -> 1f
+            v < -1.2f -> 0f
+            panel.value > 0.4f -> 1f
+            else -> 0f
+        }
+        if (target == 0f) focusSearch = false
+        panel.animateTo(target, panelSpring, initialVelocity = v)
+    }
+    val panelDragModifier = Modifier.draggable(
+        panelDrag, Orientation.Horizontal,
+        enabled = !settings,
+        onDragStarted = { focusSearch = false },
+        onDragStopped = { settlePanel(it) },
+    )
+    val panelOpen by remember { derivedStateOf { panel.targetValue > 0f } }
+
     // Pressing Home while already home closes whatever is open.
     LaunchedEffect(homePresses) {
-        if (homePresses > 0) { sidebar = false; settings = false; agenda = false }
+        if (homePresses > 0) { panel.snapTo(0f); focusSearch = false; settings = false; agenda = false }
     }
     BackHandler(enabled = true) { /* the home screen itself has nowhere to go back to */ }
-    BackHandler(enabled = sidebar || settings) {
-        if (settings) settings = false else sidebar = false
+    BackHandler(enabled = panelOpen || settings) {
+        if (settings) settings = false else closePanel()
+    }
+
+    // Dark status-bar icons over a light wallpaper (but not over the dark panel or settings).
+    val light = vm.lightWallpaper
+    val panelMostlyOpen by remember { derivedStateOf { panel.value > 0.5f } }
+    val view = LocalView.current
+    val darkBarIcons = light && !settings && !panelMostlyOpen
+    SideEffect {
+        (ctx as? Activity)?.window?.let { w ->
+            WindowCompat.getInsetsController(w, view).apply {
+                isAppearanceLightStatusBars = darkBarIcons
+                isAppearanceLightNavigationBars = darkBarIcons
+            }
+        }
     }
 
     val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -115,23 +180,11 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
         connectCalendar = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) },
     )
 
-    val left = vm.prefs.sidebarOnLeft
-    val density = LocalDensity.current
-    CompositionLocalProvider(LocalTiles provides paletteFor(vm.prefs.tileStyle)) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .pointerInput(left) {
-                    val threshold = with(density) { 70.dp.toPx() }
-                    var total = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { total = 0f },
-                        onDragEnd = {
-                            if ((left && total > threshold) || (!left && total < -threshold)) sidebar = true
-                        },
-                    ) { _, amount -> total += amount }
-                },
-        ) {
+    CompositionLocalProvider(
+        LocalTiles provides paletteFor(vm.prefs.tileStyle, light),
+        LocalWallpaperText provides if (light) TextOnLightWallpaper else TextOnDarkWallpaper,
+    ) {
+        Box(Modifier.fillMaxSize().then(panelDragModifier)) {
             val dockPos = vm.prefs.dockPosition
             val bigClock = vm.prefs.headerStyle == HeaderStyle.CLOCK
             var clockHeight by remember { mutableIntStateOf(0) }
@@ -176,7 +229,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     Column(Modifier.weight(1f)) {
                         Header(vm, actions)
                         Spacer(Modifier.height(20.dp))
-                        FavoritesGrid(vm, onOpenSidebar = { sidebar = true }, modifier = Modifier.weight(1f))
+                        FavoritesGrid(vm, onOpenSidebar = { openPanel(false) }, modifier = Modifier.weight(1f))
                     }
                     if (dockPos == DockPosition.RIGHT) {
                         Spacer(Modifier.width(12.dp))
@@ -185,15 +238,16 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 }
                 if (dockPos == DockPosition.BOTTOM) Dock(vm)
                 SearchBar(
-                    onSearch = { focusSearch = true; sidebar = true },
-                    onApps = { focusSearch = false; sidebar = true },
+                    onSearch = { openPanel(true) },
+                    onApps = { openPanel(false) },
                     onSettings = { settings = true },
                 )
             }
 
             Sidebar(
-                visible = sidebar, vm = vm, focusSearch = focusSearch,
-                onClose = { sidebar = false; focusSearch = false },
+                progress = { panel.value }, vm = vm, focusSearch = focusSearch,
+                drag = panelDragModifier,
+                onClose = closePanel,
                 onSettings = { settings = true },
             )
 
@@ -251,7 +305,7 @@ private fun FavoritesGrid(vm: LauncherViewModel, onOpenSidebar: () -> Unit, modi
                 Text(
                     "Tap Search or ☰ below to see all your apps.\n" +
                         "Long-press an app there to add it here or to the dock.",
-                    style = WallpaperText.copy(color = Color.White.copy(alpha = 0.85f)),
+                    style = WallpaperText.copy(color = WallpaperText.color.copy(alpha = 0.85f)),
                     fontSize = 14.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onOpenSidebar).padding(16.dp),
                 )
@@ -260,23 +314,11 @@ private fun FavoritesGrid(vm: LauncherViewModel, onOpenSidebar: () -> Unit, modi
         return
     }
     val cols = vm.prefs.columns
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(cols),
+    ReorderableAppGrid(
+        vm = vm, apps = favs, columns = cols,
+        iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f),
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(favs, key = { it.key }) { app ->
-            Box(contentAlignment = Alignment.Center) {
-                AppCell(
-                    app = app,
-                    iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f), roundness = vm.prefs.iconRoundness,
-                    showLabel = vm.prefs.showLabels, onOpen = { vm.launch(app) },
-                    menu = { homeMenu(vm, app, inDock = false) },
-                )
-            }
-        }
-    }
+    )
 }
 
 @Composable
@@ -383,7 +425,7 @@ private fun SearchBar(onSearch: () -> Unit, onApps: () -> Unit, onSettings: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onSettings) {
-            Icon(Icons.Default.Settings, "Settings", tint = Color.White.copy(alpha = 0.85f))
+            Icon(Icons.Default.Settings, "Settings", tint = WallpaperText.color.copy(alpha = 0.85f))
         }
         Row(
             Modifier
@@ -399,7 +441,7 @@ private fun SearchBar(onSearch: () -> Unit, onApps: () -> Unit, onSettings: () -
             Text("Search", color = p.fg, fontSize = 15.sp)
         }
         IconButton(onClick = onApps) {
-            Icon(Icons.Default.Menu, "All apps", tint = Color.White.copy(alpha = 0.85f))
+            Icon(Icons.Default.Menu, "All apps", tint = WallpaperText.color.copy(alpha = 0.85f))
         }
     }
 }

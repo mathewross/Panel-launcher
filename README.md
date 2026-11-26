@@ -64,16 +64,20 @@ Installing a newer build updates the app in place and keeps your layout.
 | Tap **Search** at the bottom | Open all apps with the keyboard up; press Enter to launch the top match |
 | Tap **☰** at the bottom | Open all apps, A–Z |
 | Tap an event | Open that event in your calendar app |
-| Swipe left | Also opens all apps. Start the swipe away from the screen edge, because an edge swipe is Android's Back gesture |
+| Swipe left | Also opens all apps. The panel follows your finger, and a flick opens or closes it. Start away from the screen edge, because an edge swipe is Android's Back gesture |
 | Long-press an app in the side panel | Add to home / add to dock / app info / uninstall |
-| Long-press an app on home or in the dock | Reorder, remove, app info, uninstall |
+| Long-press an app on the home grid and **drag** | Move it; the other icons slide out of the way |
+| Long-press an app without moving | Menu: remove, add to dock, app info, uninstall |
+| Long-press an app in the dock | Move up/down, remove, app info, uninstall |
 | ⚙️ at the bottom (or in the app panel) | Settings |
 
 ### Settings
 
 - **Top section**: *Boxes* (Folio-style tiles), *Glance* (Niagara-style large clock with the
   date, weather and next events as text), or *Big clock* (iOS lock-screen style, below).
-- **Box style**: Glass, Light or Dark.
+- **Box style**: Glass, Light or Dark. Glass, labels and status-bar icons switch to dark
+  text automatically on a light wallpaper (*Text on wallpaper*: Auto / Dark / White to
+  override).
 - **Dock**: right (Folio), left, or bottom. With the dock at the bottom, weather becomes a
   third box.
 - **Grid**: 3 to 7 columns, icon size 70–130%. Rows scroll, so there are as many as you need.

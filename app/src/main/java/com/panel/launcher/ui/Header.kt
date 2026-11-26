@@ -170,7 +170,7 @@ private fun EventLine(e: CalEvent, now: Long, fg: Color, subtle: Color, onClick:
 private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier) {
     val ctx = LocalContext.current
     val now = vm.now
-    val sub = WallpaperText.copy(color = Color.White.copy(alpha = 0.85f))
+    val sub = WallpaperText.copy(color = WallpaperText.color.copy(alpha = 0.85f))
     Column(modifier.padding(horizontal = 8.dp)) {
         Text(
             Fmt.time(ctx, now),

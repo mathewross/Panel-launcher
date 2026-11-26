@@ -72,7 +72,7 @@ fun BigClock(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier = Modif
     val now = vm.now
     val (family, weight) = clockFamily(p.clockFont)
     val color = Color(p.clockColor).copy(alpha = p.clockOpacity / 100f)
-    val info = WallpaperText.copy(color = Color.White.copy(alpha = 0.92f))
+    val info = WallpaperText.copy(color = WallpaperText.color.copy(alpha = 0.92f))
 
     Column(modifier.padding(top = p.clockOffset.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(

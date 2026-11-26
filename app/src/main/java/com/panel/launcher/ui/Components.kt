@@ -98,34 +98,42 @@ fun AppCell(
     var open by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     Box(modifier) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
+        AppVisual(
+            app, iconSize, roundness, showLabel,
+            Modifier
                 .clip(RoundedCornerShape(16.dp))
                 .combinedClickable(
                     onClick = onOpen,
                     onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); open = true },
-                )
-                .padding(vertical = 6.dp, horizontal = 2.dp),
-        ) {
-            AppIcon(app, iconSize, roundness)
-            if (showLabel) {
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    app.label,
-                    style = WallpaperText,
-                    fontSize = 11.5.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.width(iconSize + 16.dp),
-                )
-            }
-        }
+                ),
+        )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             menu().forEach { a ->
                 DropdownMenuItem(text = { Text(a.label) }, onClick = { open = false; a.run() })
             }
+        }
+    }
+}
+
+/** Icon with its name underneath, no touch handling. */
+@Composable
+fun AppVisual(app: AppEntry, iconSize: Dp, roundness: Int, showLabel: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.padding(vertical = 6.dp, horizontal = 2.dp),
+    ) {
+        AppIcon(app, iconSize, roundness)
+        if (showLabel) {
+            Spacer(Modifier.height(5.dp))
+            Text(
+                app.label,
+                style = WallpaperText,
+                fontSize = 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(iconSize + 16.dp),
+            )
         }
     }
 }

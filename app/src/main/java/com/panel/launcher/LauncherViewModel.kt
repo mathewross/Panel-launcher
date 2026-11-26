@@ -55,6 +55,17 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var wallpaperSubject by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null); private set
     var wallpaperStatus by mutableStateOf<String?>(null); private set
 
+    /** True when the wallpaper behind the home screen is light, so text and icons should be dark. */
+    private var detectedLight by mutableStateOf(false)
+    val lightWallpaper: Boolean
+        get() = when (prefs.wallpaperTone) {
+            "light" -> true
+            "dark" -> false
+            else -> detectedLight
+        }
+    private val wallpaperColorsListener =
+        android.app.WallpaperManager.OnColorsChangedListener { _, _ -> detectWallpaperTone() }
+
     private val appsCallback: LauncherApps.Callback
     private var calendarJob: Job? = null
     private val calendarObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -68,6 +79,11 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             wallpaperBitmap = w
             wallpaper = w?.asImageBitmap()
             wallpaperSubject = f?.asImageBitmap()
+            detectWallpaperTone()
+        }
+        runCatching {
+            android.app.WallpaperManager.getInstance(app)
+                .addOnColorsChangedListener(wallpaperColorsListener, Handler(Looper.getMainLooper()))
         }
         refreshApps()
         appsCallback = repo.watch { refreshApps() }
@@ -85,6 +101,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onResume() {
         now = System.currentTimeMillis()
+        detectWallpaperTone()
         refreshAlarm()
         refreshCalendar()
         refreshWeather()
@@ -166,6 +183,37 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Custom wallpaper ----------
 
+    /**
+     * Works out whether the wallpaper is light. Uses Panel's own photo if one is set, otherwise
+     * the colour hints Android publishes for the system wallpaper (no permission needed).
+     */
+    fun detectWallpaperTone() {
+        val own = wallpaperBitmap
+        if (own != null) {
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+                // Average brightness of the top half, where the boxes and clock sit.
+                val small = android.graphics.Bitmap.createScaledBitmap(own, 24, 48, true)
+                var sum = 0.0
+                for (y in 0 until 24) for (x in 0 until 24) {
+                    val c = small.getPixel(x, y)
+                    sum += 0.2126 * android.graphics.Color.red(c) + 0.7152 * android.graphics.Color.green(c) +
+                        0.0722 * android.graphics.Color.blue(c)
+                }
+                val light = sum / (24 * 24) / 255.0 > 0.62
+                launch(kotlinx.coroutines.Dispatchers.Main) { detectedLight = light }
+            }
+            return
+        }
+        val colors = runCatching {
+            android.app.WallpaperManager.getInstance(ctx).getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)
+        }.getOrNull() ?: return
+        detectedLight = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            colors.colorHints and android.app.WallpaperColors.HINT_SUPPORTS_DARK_TEXT != 0
+        } else {
+            colors.primaryColor.luminance() > 0.6f
+        }
+    }
+
     fun importWallpaper(uri: Uri) {
         viewModelScope.launch {
             wallpaperStatus = "Loading photo…"
@@ -176,6 +224,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             wallpaperBitmap = bmp
             wallpaper = bmp.asImageBitmap()
             wallpaperSubject = null
+            detectWallpaperTone()
             wallpaperStatus = "Finding the subject for the depth effect…"
             val fg = runCatching { com.panel.launcher.data.CustomWallpaper.segment(ctx, bmp) }.getOrNull()
             wallpaperSubject = fg?.asImageBitmap()
@@ -190,6 +239,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         wallpaper = null
         wallpaperSubject = null
         wallpaperStatus = null
+        detectWallpaperTone()
     }
 
     fun useAsSystemWallpaper() {
@@ -291,6 +341,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     fun toast(msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
 
     override fun onCleared() {
+        runCatching { android.app.WallpaperManager.getInstance(ctx).removeOnColorsChangedListener(wallpaperColorsListener) }
         repo.unwatch(appsCallback)
         if (observingCalendar) ctx.contentResolver.unregisterContentObserver(calendarObserver)
     }
