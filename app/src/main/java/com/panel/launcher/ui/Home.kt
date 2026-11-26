@@ -179,10 +179,14 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     // ---- Home zooms away as an app opens, and settles back in when you return. ----
     val homeScale = remember { Animatable(1f) }
     val homeAlpha = remember { Animatable(1f) }
+    // Cascade on return: header, then grid, then dock/search arrive one after another.
+    val entrance = remember { List(3) { Animatable(1f) } }
+    val entranceShift = with(density) { 70.dp.toPx() }
     LaunchedEffect(vm.launchTick) {
         if (vm.launchTick == 0 || !vm.prefs.openAnimation) return@LaunchedEffect
-        launch { homeScale.animateTo(1.08f, tween(320)) }
-        homeAlpha.animateTo(0f, tween(260))
+        // The home screen pushes away as the app grows out of its icon.
+        launch { homeScale.animateTo(1.18f, tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+        homeAlpha.animateTo(0f, tween(200))
         // If the app didn't take over the screen (e.g. it failed to open), come back.
         kotlinx.coroutines.delay(900)
         if (vm.resumed) {
@@ -192,17 +196,30 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     }
     LaunchedEffect(vm.resumeTick) {
         if (homeAlpha.value < 1f) {
-            homeScale.snapTo(0.92f)
-            launch { homeAlpha.animateTo(1f, tween(240)) }
-            homeScale.animateTo(1f, spring(dampingRatio = 0.75f, stiffness = 260f))
+            homeScale.snapTo(0.82f)
+            entrance.forEach { it.snapTo(0f) }
+            launch { homeAlpha.animateTo(1f, tween(260)) }
+            entrance.forEachIndexed { i, e ->
+                launch {
+                    kotlinx.coroutines.delay(40L + i * 60L)
+                    e.animateTo(1f, spring(dampingRatio = 0.68f, stiffness = 260f))
+                }
+            }
+            homeScale.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 210f))
         }
+    }
+    val entranceLayer: androidx.compose.ui.graphics.GraphicsLayerScope.(Int) -> Unit = { i ->
+        val e = entrance[i].value
+        translationY = (1f - e) * entranceShift
+        alpha = e.coerceIn(0f, 1f)
     }
 
     // ---- Depth: the home screen blurs and sinks back while the panel, a folder or a menu is open. ----
     val menuController = remember { ContextMenuController() }
     val folderT by animateFloatAsState(if (openFolder != null) 1f else 0f, tween(280), label = "folderDepth")
     val menuT by animateFloatAsState(if (menuController.request != null) 1f else 0f, tween(220), label = "menuDepth")
-    val depth: () -> Float = { maxOf(panel.value, folderT, menuT) }
+    val agendaT by animateFloatAsState(if (agenda) 1f else 0f, tween(300), label = "agendaDepth")
+    val depth: () -> Float = { maxOf(panel.value, folderT, menuT, agendaT) }
     val blurPx = with(density) { 24.dp.toPx() }
     val depthLayer: androidx.compose.ui.graphics.GraphicsLayerScope.(Float) -> Unit = { extraScale ->
         val d = depth()
@@ -225,6 +242,21 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 if (radius > 0) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                 else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                 w.attributes = w.attributes.apply { blurBehindRadius = radius }
+            }
+        }
+    }
+
+    // With a Panel wallpaper photo, stop Android drawing the system wallpaper behind it too
+    // (otherwise both show for a moment when returning home).
+    val ownWallpaper = vm.wallpaper != null
+    SideEffect {
+        (ctx as? Activity)?.window?.let { w ->
+            if (ownWallpaper) {
+                w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK))
+            } else {
+                w.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             }
         }
     }
@@ -316,8 +348,14 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 Image(
                     it, null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().graphicsLayer {
-                        // The wallpaper moves a little with the home zoom, for depth.
-                        depthLayer(1f + (homeScale.value - 1f) * 0.35f)
+                        // The wallpaper moves a little with the home zoom (never smaller than the
+                        // screen, so nothing shows round its edges) and blurs behind overlays.
+                        val d = depth()
+                        val s = maxOf(1f, 1f + (homeScale.value - 1f) * 0.35f) * (1f + 0.04f * d)
+                        scaleX = s; scaleY = s
+                        renderEffect = if (android.os.Build.VERSION.SDK_INT >= 31 && d > 0.01f) {
+                            androidx.compose.ui.graphics.BlurEffect(blurPx * d, blurPx * d, androidx.compose.ui.graphics.TileMode.Clamp)
+                        } else null
                     },
                 )
             }
@@ -362,11 +400,11 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     } else null
                     Row(Modifier.fillMaxSize()) {
                         if (dockPos == DockPosition.LEFT) {
-                            SideRail(vm, actions, boxSize)
+                            Box(Modifier.graphicsLayer { entranceLayer(2) }) { SideRail(vm, actions, boxSize) }
                             Spacer(Modifier.width(12.dp))
                         }
                         Column(Modifier.weight(1f)) {
-                            Header(vm, actions)
+                            Header(vm, actions, Modifier.graphicsLayer { entranceLayer(0) })
                             Spacer(Modifier.height(20.dp))
                             FavoritesGrid(
                                 vm, onOpenSidebar = { openPanel(false) }, onOpenFolder = { openFolder = it },
@@ -374,16 +412,16 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                                 onPickPanelWallpaper = {
                                     wallpaperPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                                 },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).graphicsLayer { entranceLayer(1) },
                             )
                         }
                         if (dockPos == DockPosition.RIGHT) {
                             Spacer(Modifier.width(12.dp))
-                            SideRail(vm, actions, boxSize)
+                            Box(Modifier.graphicsLayer { entranceLayer(2) }) { SideRail(vm, actions, boxSize) }
                         }
                     }
                 }
-                if (dockPos == DockPosition.BOTTOM) Dock(vm)
+                if (dockPos == DockPosition.BOTTOM) Box(Modifier.graphicsLayer { entranceLayer(2) }) { Dock(vm) }
                 SearchBar(
                     onSearch = { openPanel(true) },
                     onApps = { openPanel(false) },
@@ -413,10 +451,11 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 requestCalendar = { calendarPermission.launch(Manifest.permission.READ_CALENDAR) },
             )
 
+            AgendaPanel(vm, agenda) { agenda = false }
+
             ContextMenuOverlay(menuController)
         }
 
-        if (agenda) AgendaSheet(vm) { agenda = false }
         folderPickFor?.let { app -> FolderPickerDialog(vm, app) { folderPickFor = null } }
 
         picker?.let { target ->

@@ -275,7 +275,7 @@ private fun SettingsBody(
             Divider()
             SwitchRow("Depth effect", p.depthEffect) { p.depthEffect = it }
             Divider()
-            ActionRow("Also use as phone wallpaper", "Sets it for the home and lock screen", Blue) { vm.useAsSystemWallpaper() }
+            SwitchRow("Also set as phone wallpaper", p.syncPhoneWallpaper) { p.syncPhoneWallpaper = it; if (it) vm.useAsSystemWallpaper() }
             Divider()
             ActionRow("Remove photo", "Go back to your phone's wallpaper", Color(0xFFFF453A)) { vm.clearWallpaper() }
         }

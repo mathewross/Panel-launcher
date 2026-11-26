@@ -321,6 +321,10 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             wallpaper = bmp.asImageBitmap()
             wallpaperSubject = null
             detectWallpaperTone()
+            // Use the same photo as the phone's wallpaper so the lock screen and app transitions match.
+            if (prefs.syncPhoneWallpaper) {
+                runCatching { com.panel.launcher.data.CustomWallpaper.setAsSystemWallpaper(ctx, bmp) }
+            }
             wallpaperStatus = "Finding the subject for the depth effect…"
             val fg = runCatching { com.panel.launcher.data.CustomWallpaper.segment(ctx, bmp) }.getOrNull()
             wallpaperSubject = fg?.asImageBitmap()

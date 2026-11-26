@@ -87,6 +87,7 @@ class Prefs(context: Context) {
     var clockColor by int("clock_color", 0xFFFFFFFF.toInt())
     var clockFont by string("clock_font", "condensed")
     var depthEffect by bool("depth_effect", true)
+    var syncPhoneWallpaper by bool("sync_phone_wallpaper", true)
     var showLabels by bool("show_labels", true)
     var sidebarOnLeft by bool("sidebar_left", false)
     var showAlarm by bool("show_alarm", true)

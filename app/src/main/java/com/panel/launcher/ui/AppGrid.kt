@@ -1,6 +1,7 @@
 package com.panel.launcher.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateIntOffsetAsState
 import androidx.compose.animation.core.spring
@@ -91,6 +92,7 @@ fun FreeAppGrid(
     val settle = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     val menus = LocalContextMenu.current
     val gridCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    var pressedKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(saved) { if (draggingKey == null) slots = saved }
 
     val showLabels = vm.prefs.showLabels
@@ -123,6 +125,8 @@ fun FreeAppGrid(
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val from = indexAt(down.position)
                             val key = slots.getOrNull(from)?.takeIf { vm.occupied(it) }
+                            pressedKey = key // icon squishes while held
+                            try {
 
                             // Phase 1: tap, scroll, or long-press?
                             val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
@@ -223,6 +227,9 @@ fun FreeAppGrid(
                                 settle.animateTo(Offset.Zero, spring(dampingRatio = 0.8f, stiffness = 600f))
                                 settleKey = null
                             }
+                            } finally {
+                                pressedKey = null
+                            }
                         }
                     },
             ) {
@@ -244,6 +251,10 @@ fun FreeAppGrid(
                         val animated by animateIntOffsetAsState(slotOffset(index), label = "slot")
                         val dragging = k == draggingKey
                         val settling = k == settleKey
+                        val press by animateFloatAsState(
+                            if (k == pressedKey && !dragging) 0.86f else 1f,
+                            spring(dampingRatio = 0.45f, stiffness = 900f), label = "press",
+                        )
                         Box(
                             Modifier
                                 .offset {
@@ -256,7 +267,7 @@ fun FreeAppGrid(
                                 .zIndex(if (dragging || settling) 1f else 0f)
                                 .size(cellW, cellH)
                                 .graphicsLayer {
-                                    val s = if (dragging) 1.12f else 1f
+                                    val s = if (dragging) 1.12f else press
                                     scaleX = s
                                     scaleY = s
                                 },

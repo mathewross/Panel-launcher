@@ -60,7 +60,7 @@ Installing a newer build updates the app in place and keeps your layout.
 | Tap the **date** box | Open your calendar app |
 | Tap the **weather** pill (top of the dock) | Open your weather app (Pixel Weather if installed) |
 | Long-press the weather pill | Refresh the weather now |
-| Tap **Up next** | Open the agenda: upcoming events grouped by day |
+| Tap **Up next** | Open the agenda, a ¾-height panel over the blurred home screen (drag the handle down to close) |
 | Tap **Search** at the bottom | Open all apps with the keyboard up; press Enter to launch the top match |
 | Tap **☰** at the bottom | Open all apps, A–Z |
 | Tap an event | Open that event in your calendar app |
@@ -114,8 +114,8 @@ of app panel*). It counts launches made through Panel, so no usage-access permis
   (Uninstall in red).
 - **Icons**: Original, Pixel-style *Themed* (Material You colours, Android 13+), or any
   Nova/ADW-format **icon pack** from the Play Store.
-- **Motion**: apps open out of their icon, and the home screen zooms away and settles back
-  when you return. Folders open out of their icon. The app's "shrink back into the icon"
+- **Motion**: icons squish when pressed, apps open out of their icon, the home screen pushes
+  away, and on return it springs back with the boxes, grid and dock cascading in. Folders open out of their icon. The app's "shrink back into the icon"
   close animation is reserved by Android for the phone's built-in launcher, so no
   downloaded launcher can do it.
 - **Gestures**: swipe down anywhere for notifications, swipe up for the app panel. The home

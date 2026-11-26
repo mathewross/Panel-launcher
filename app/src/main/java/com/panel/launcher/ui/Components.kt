@@ -1,6 +1,11 @@
 package com.panel.launcher.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -107,12 +112,17 @@ fun AppCell(
     val haptics = LocalHapticFeedback.current
     val menus = LocalContextMenu.current
     val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val press by animateFloatAsState(if (pressed) 0.86f else 1f, spring(dampingRatio = 0.45f, stiffness = 900f), label = "press")
     AppVisual(
         app, iconSize, roundness, showLabel,
         modifier
             .onGloballyPositioned { coords[0] = it }
-            .clip(RoundedCornerShape(16.dp))
+            .graphicsLayer { scaleX = press; scaleY = press }
             .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
                 onClick = onOpen,
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
