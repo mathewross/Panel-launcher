@@ -480,7 +480,13 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Actions ----------
 
-    fun launch(app: AppEntry) = repo.launch(app)
+    fun launch(app: AppEntry) {
+        repo.launch(app)
+        // Remember for the "Recent" row (only launches through Panel; no usage-access permission).
+        prefs.recentApps = (listOf(app.key) + prefs.recentApps.filter { it != app.key }).take(12)
+    }
+
+    fun recentApps(n: Int): List<AppEntry> = prefs.recentApps.mapNotNull { appsByKey[it] }.take(n)
 
     /** Returns false when no app is configured and nothing sensible could be opened. */
     fun openClock(context: Context): Boolean {

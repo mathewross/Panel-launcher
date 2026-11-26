@@ -63,6 +63,8 @@ class Prefs(context: Context) {
     var upNextAllDay by bool("up_next_all_day", true)
     var showMusic by bool("show_music", true)
     var foldersJson by string("folders", "{}")
+    var showRecents by bool("show_recents", true)
+    var recentApps: List<String> by list("recent_apps") // most recent first, launched via Panel
     var wallpaperTone by string("wallpaper_tone", "auto") // auto | light | dark
     var iconScale by int("icon_scale", 100) // percent
 

@@ -81,6 +81,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 private sealed interface SideRow {
     data class Header(val letter: String) : SideRow
     data class App(val app: AppEntry) : SideRow
+    data object Recents : SideRow
 }
 
 private fun letterOf(label: String): String {
@@ -157,13 +158,14 @@ private fun SidebarContent(
         if (!visible) { query = ""; focus.clearFocus() }
     }
 
-    val rows: List<SideRow> = remember(vm.apps, query) {
+    val rows: List<SideRow> = remember(vm.apps, query, vm.prefs.showRecents, vm.prefs.recentApps) {
         val q = query.trim()
         if (q.isNotEmpty()) {
             vm.apps.filter { it.label.contains(q, ignoreCase = true) }
                 .sortedBy { !it.label.startsWith(q, ignoreCase = true) }
                 .map { SideRow.App(it) }
         } else buildList {
+            if (vm.prefs.showRecents && vm.recentApps(5).isNotEmpty()) add(SideRow.Recents)
             var last = ""
             vm.apps.forEach { app ->
                 val l = letterOf(app.label)
@@ -225,7 +227,11 @@ private fun SidebarContent(
         Row(Modifier.weight(1f)) {
             LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
                 itemsIndexed(rows, key = { _, r ->
-                    when (r) { is SideRow.Header -> "h_" + r.letter; is SideRow.App -> r.app.key }
+                    when (r) {
+                        is SideRow.Header -> "h_" + r.letter
+                        is SideRow.App -> r.app.key
+                        SideRow.Recents -> "recents"
+                    }
                 }) { _, r ->
                     when (r) {
                         is SideRow.Header -> Text(
@@ -233,6 +239,7 @@ private fun SidebarContent(
                             modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 4.dp),
                         )
                         is SideRow.App -> SidebarApp(vm, r.app, onAddToFolder) { open(r.app) }
+                        SideRow.Recents -> RecentRow(vm) { open(it) }
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
@@ -277,6 +284,29 @@ private fun SidebarApp(vm: LauncherViewModel, app: AppEntry, onAddToFolder: (App
             }
             items.forEach { (label, run) ->
                 DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; run() })
+            }
+        }
+    }
+}
+
+/** The last few apps opened through Panel. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RecentRow(vm: LauncherViewModel, onOpen: (AppEntry) -> Unit) {
+    Column(Modifier.padding(top = 4.dp, bottom = 4.dp)) {
+        Text(
+            "Recent", color = Color(0xFF8E8E93), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp, bottom = 4.dp),
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            vm.recentApps(5).forEach { app ->
+                androidx.compose.runtime.CompositionLocalProvider(LocalWallpaperText provides TextOnDarkWallpaper) {
+                    AppVisual(
+                        app, 46.dp, vm.prefs.iconRoundness, showLabel = true,
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp))
+                            .combinedClickable(onClick = { onOpen(app) }),
+                    )
+                }
             }
         }
     }

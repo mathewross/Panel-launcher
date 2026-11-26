@@ -75,6 +75,9 @@ Installing a newer build updates the app in place and keeps your layout.
 | Long-press an app in the dock | Move up/down, remove, app info, uninstall |
 | ⚙️ at the bottom (or in the app panel) | Settings |
 
+The app panel shows your **5 most recent apps** at the top (Settings › *Recent apps at top
+of app panel*). It counts launches made through Panel, so no usage-access permission is needed.
+
 ### Settings
 
 - **Top section**: *Boxes* (Folio-style tiles), *Glance* (Niagara-style large clock with the

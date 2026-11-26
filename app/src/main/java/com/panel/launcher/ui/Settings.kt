@@ -160,6 +160,8 @@ private fun SettingsBody(
         Divider()
         ChoiceRow("App panel slides from", listOf("Left" to true, "Right" to false), p.sidebarOnLeft) { p.sidebarOnLeft = it }
         Divider()
+        SwitchRow("Recent apps at top of app panel", p.showRecents) { p.showRecents = it }
+        Divider()
         SwitchRow("Show next alarm", p.showAlarm) { p.showAlarm = it; vm.onResume() }
     }
 
