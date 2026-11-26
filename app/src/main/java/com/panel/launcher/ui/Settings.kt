@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.panel.launcher.LauncherViewModel
 import com.panel.launcher.PickTarget
 import com.panel.launcher.data.CalendarRepository
+import com.panel.launcher.data.DockPosition
 import com.panel.launcher.data.HeaderStyle
 import com.panel.launcher.data.TileStyle
 import com.panel.launcher.data.WeatherRepository
@@ -125,7 +126,15 @@ private fun SettingsBody(
         Divider()
         SwitchRow("Show app names", p.showLabels) { p.showLabels = it }
         Divider()
-        ChoiceRow("Side panel", listOf("Left" to true, "Right" to false), p.sidebarOnLeft) { p.sidebarOnLeft = it }
+        ChoiceRow(
+            "Dock",
+            listOf("Left" to DockPosition.LEFT, "Right" to DockPosition.RIGHT, "Bottom" to DockPosition.BOTTOM),
+            p.dockPosition,
+        ) { p.dockPosition = it }
+        Divider()
+        SwitchRow("Show Up next box", p.showUpNext) { p.showUpNext = it }
+        Divider()
+        ChoiceRow("App panel slides from", listOf("Left" to true, "Right" to false), p.sidebarOnLeft) { p.sidebarOnLeft = it }
         Divider()
         SwitchRow("Show next alarm", p.showAlarm) { p.showAlarm = it; vm.onResume() }
     }

@@ -2,7 +2,10 @@ package com.panel.launcher.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.panel.launcher.LauncherViewModel
 import com.panel.launcher.data.CalEvent
+import com.panel.launcher.data.DockPosition
 import com.panel.launcher.data.HeaderStyle
 import com.panel.launcher.data.WeatherRepository
 
@@ -57,89 +61,82 @@ private fun upNext(events: List<CalEvent>, max: Int) = events.take(max)
 @Composable
 private fun BoxesHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier) {
     val ctx = LocalContext.current
-    val p = LocalTiles.current
     val now = vm.now
+    val is24 = DateFormat.is24HourFormat(ctx)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth().height(150.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Clock box -> clock app
-            Tile(Modifier.weight(1.2f).fillMaxHeight(), onClick = a.clock) {
-                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                    SectionLabel(Fmt.pattern(now, "EEEE"), Accent)
-                    Text(
-                        Fmt.time(ctx, now),
-                        color = p.fg, fontSize = 54.sp, fontWeight = FontWeight.Medium,
-                        letterSpacing = (-2).sp, lineHeight = 56.sp, maxLines = 1,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            Fmt.pattern(now, "d MMMM"),
-                            color = p.subtle, fontSize = 14.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = a.calendar),
-                        )
-                        vm.nextAlarm?.let {
-                            Spacer(Modifier.weight(1f))
-                            Text("⏰ " + Fmt.shortTime(ctx, it), color = p.subtle, fontSize = 13.sp, maxLines = 1)
-                        }
-                    }
-                }
-            }
-            // Weather box -> weather app
-            Tile(Modifier.weight(1f).fillMaxHeight(), onClick = a.weather, onLongClick = a.weatherLongPress) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val clockSub = listOfNotNull(
+                if (is24) null else Fmt.pattern(now, "a"),
+                Fmt.pattern(now, "EEE"),
+                vm.nextAlarm?.let { "⏰ " + Fmt.time(ctx, it) },
+            ).joinToString(" · ")
+            FolioBox("Local time", Fmt.time(ctx, now), clockSub, a.clock, null, Modifier.weight(1f))
+            FolioBox(
+                Fmt.pattern(now, "EEEE"), Fmt.pattern(now, "d"), Fmt.pattern(now, "MMMM"),
+                a.calendar, null, Modifier.weight(1f),
+            )
+            if (vm.prefs.dockPosition == DockPosition.BOTTOM) {
+                // No side rail in this layout, so weather gets a box of its own.
                 val w = vm.weather
-                if (w == null) {
-                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-                        Text("🌤️", fontSize = 30.sp)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            if (vm.weatherLoading) "Loading…" else vm.weatherError ?: "Tap to set up weather",
-                            color = p.subtle, fontSize = 13.sp, maxLines = 3,
-                        )
-                    }
-                } else {
-                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                        Text(
-                            w.place.ifBlank { "Weather" }, color = p.fg, fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            Fmt.temp(w.tempC, vm.prefs.fahrenheit), color = p.fg, fontSize = 44.sp,
-                            fontWeight = FontWeight.Light, lineHeight = 46.sp,
-                        )
-                        Column {
-                            Text(WeatherRepository.emoji(w.code, w.isDay), fontSize = 18.sp)
-                            Text(WeatherRepository.describe(w.code), color = p.fg, fontSize = 13.sp, maxLines = 1)
-                            Text(
-                                "H:${Fmt.temp(w.maxC, vm.prefs.fahrenheit)}  L:${Fmt.temp(w.minC, vm.prefs.fahrenheit)}",
-                                color = p.subtle, fontSize = 12.sp,
-                            )
-                        }
-                    }
-                }
+                FolioBox(
+                    w?.place?.takeIf { it.isNotBlank() } ?: "Weather",
+                    w?.let { Fmt.temp(it.tempC, vm.prefs.fahrenheit) } ?: "—",
+                    w?.let { WeatherRepository.emoji(it.code, it.isDay) + " " + WeatherRepository.describe(it.code) }
+                        ?: "Tap to set up",
+                    a.weather, a.weatherLongPress, Modifier.weight(1f),
+                )
             }
         }
-        // Calendar / up-next box -> agenda
-        Tile(Modifier.fillMaxWidth(), onClick = if (vm.hasCalendar) a.agenda else a.connectCalendar) {
-            Row {
-                Column(
-                    Modifier.width(62.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = a.calendar),
-                ) {
-                    Text(Fmt.pattern(now, "EEE").uppercase(), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(Fmt.pattern(now, "d"), color = p.fg, fontSize = 38.sp, fontWeight = FontWeight.Normal, lineHeight = 40.sp)
+        if (vm.prefs.showUpNext) UpNextBox(vm, a)
+    }
+}
+
+/** Square Folio-style box: small caps label, one big value, a quiet subtitle. */
+@Composable
+private fun FolioBox(
+    label: String,
+    value: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier,
+) {
+    val p = LocalTiles.current
+    Tile(modifier.aspectRatio(1f), onClick = onClick, onLongClick = onLongClick, padding = 16.dp) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val big = (maxWidth.value * 0.33f).coerceIn(24f, 60f).sp
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    label.uppercase(), color = p.subtle, fontSize = 11.sp, letterSpacing = 0.8.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    value, color = p.fg, fontSize = big, fontWeight = FontWeight.Medium,
+                    letterSpacing = (-1).sp, maxLines = 1, softWrap = false,
+                )
+                Text(subtitle, color = p.subtle, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** Niagara-style "what's next" strip under the boxes; tap for the full agenda. */
+@Composable
+private fun UpNextBox(vm: LauncherViewModel, a: HeaderActions) {
+    val p = LocalTiles.current
+    Tile(Modifier.fillMaxWidth(), onClick = if (vm.hasCalendar) a.agenda else a.connectCalendar) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionLabel("Up next", p.subtle, Modifier.weight(1f))
+                if (vm.hasCalendar) {
+                    Text("Agenda ›", color = p.subtle, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
                 }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!vm.hasCalendar) {
-                        SectionLabel("Up next", p.subtle)
-                        Text("Tap to show your calendar events here", color = p.fg, fontSize = 14.sp)
-                    } else {
-                        val list = upNext(vm.events, 3)
-                        if (list.isEmpty()) {
-                            SectionLabel("Up next", p.subtle)
-                            Text("No upcoming events", color = p.subtle, fontSize = 14.sp)
-                        } else {
-                            list.forEach { e -> EventLine(e, now, p.fg, p.subtle) { a.event(e) } }
-                        }
-                    }
-                }
+            }
+            val list = upNext(vm.events, 2)
+            when {
+                !vm.hasCalendar -> Text("Tap to show your calendar events here", color = p.fg, fontSize = 14.sp)
+                list.isEmpty() -> Text("Nothing coming up", color = p.subtle, fontSize = 14.sp)
+                else -> list.forEach { e -> EventLine(e, vm.now, p.fg, p.subtle) { a.event(e) } }
             }
         }
     }

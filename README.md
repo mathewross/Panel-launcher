@@ -1,9 +1,26 @@
 # Panel launcher
 
-An Android home-screen app that mixes **Folio's look** (clean iOS-style boxes, rounded icon
-grid, a slide-in side panel with all your apps) with **Niagara's glance features** (clock,
-weather and "up next" from your calendar in one place, each opening the right app, plus a
-day-by-day agenda view).
+An Android home-screen app that mixes **Folio's look** (frosted square boxes for the time
+and date, a round-icon grid, and a tall pill-shaped dock down the right edge) with
+**Niagara's glance features** (weather and "up next" from your calendar in one place, each
+opening the right app, plus a day-by-day agenda view).
+
+```
+┌──────────────────────────────┬──────┐
+│ ┌────────────┐ ┌────────────┐│ ┌──┐ │
+│ │LOCAL TIME  │ │TUESDAY     ││ │☁ │ │  weather pill
+│ │ 12:08      │ │ 15         ││ │12°│ │
+│ │PM · Tue    │ │September   ││ └──┘ │
+│ └────────────┘ └────────────┘│ ┌──┐ │
+│ ┌───────────────────────────┐│ │◯ │ │
+│ │UP NEXT        Agenda ›    ││ │◯ │ │  dock (up to 6)
+│ │▍Team call · in 25 min     ││ │◯ │ │
+│ └───────────────────────────┘│ │◯ │ │
+│  ◯    ◯    ◯    ◯            │ └──┘ │
+│  ◯    ◯    ◯    ◯   your apps│      │
+│          ⚙  (🔍 Search)  ☰           │
+└─────────────────────────────────────┘
+```
 
 ## Why this works with banking apps
 
@@ -39,24 +56,28 @@ Installing a newer build updates the app in place and keeps your layout.
 
 | Do this | To |
 |---|---|
-| Tap the **clock** box | Open your clock/alarms app |
-| Tap the **date** | Open your calendar app |
-| Tap the **weather** box | Open your weather app (you choose which, the first time) |
-| Long-press the weather box | Refresh the weather now |
+| Tap the **Local time** box | Open your clock/alarms app |
+| Tap the **date** box | Open your calendar app |
+| Tap the **weather** pill (top of the dock) | Open your weather app (Pixel Weather if installed) |
+| Long-press the weather pill | Refresh the weather now |
 | Tap **Up next** | Open the agenda: upcoming events grouped by day |
+| Tap **Search** at the bottom | Open all apps with the keyboard up; press Enter to launch the top match |
+| Tap **☰** at the bottom | Open all apps, A–Z |
 | Tap an event | Open that event in your calendar app |
-| Swipe left (or tap the handle on the right edge) | Open the side panel with all apps, A–Z, plus search. Start the swipe away from the screen edge, because an edge swipe is Android's Back gesture |
+| Swipe left | Also opens all apps. Start the swipe away from the screen edge, because an edge swipe is Android's Back gesture |
 | Long-press an app in the side panel | Add to home / add to dock / app info / uninstall |
 | Long-press an app on home or in the dock | Reorder, remove, app info, uninstall |
-| ⚙️ in the side panel | Settings |
+| ⚙️ at the bottom (or in the app panel) | Settings |
 
 ### Settings
 
 - **Top section**: *Boxes* (Folio-style tiles) or *Glance* (Niagara-style large clock with the
   date, weather and next events as text).
 - **Box style**: Glass, Light or Dark.
-- Number of columns, icon roundness, app names on or off, side panel on the left or right,
-  next alarm on or off.
+- **Dock**: right (Folio), left, or bottom. With the dock at the bottom, weather becomes a
+  third box.
+- Show or hide the Up next box, number of columns, icon roundness (round by default),
+  app names on or off, which side the app panel slides from, next alarm on or off.
 - Weather units, city (or device location), and which app the weather box opens.
 - Which apps the clock and calendar open (defaults to the system ones).
 

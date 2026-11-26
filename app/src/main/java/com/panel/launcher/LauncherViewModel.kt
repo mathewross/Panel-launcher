@@ -163,10 +163,13 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleDock(app: AppEntry) {
         prefs.dock = when {
             isDocked(app) -> prefs.dock - app.key
-            prefs.dock.size >= 5 -> { toast("The dock holds 5 apps"); prefs.dock }
+            prefs.dock.size >= dockLimit -> { toast("The dock holds $dockLimit apps"); prefs.dock }
             else -> prefs.dock + app.key
         }
     }
+
+    val dockLimit: Int
+        get() = if (prefs.dockPosition == com.panel.launcher.data.DockPosition.BOTTOM) 5 else 6
 
     fun moveFavorite(app: AppEntry, by: Int) { prefs.favorites = move(prefs.favorites, app.key, by) }
     fun moveDock(app: AppEntry, by: Int) { prefs.dock = move(prefs.dock, app.key, by) }

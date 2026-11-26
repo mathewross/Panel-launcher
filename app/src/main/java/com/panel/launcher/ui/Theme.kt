@@ -14,12 +14,13 @@ val Accent = Color(0xFFFF453A)       // iOS-style red used for dates / "Up next"
 val SheetColor = Color(0xFF1C1C1E)
 val SheetRaised = Color(0xFF2C2C2E)
 
-data class TilePalette(val bg: Color, val fg: Color, val subtle: Color, val border: Color)
+data class TilePalette(val bg: Color, val fg: Color, val subtle: Color, val border: Color, val glass: Boolean = false)
 
 fun paletteFor(style: TileStyle) = when (style) {
     TileStyle.GLASS -> TilePalette(
-        bg = Color(0x52202024),
-        fg = Color.White, subtle = Color.White.copy(alpha = 0.72f), border = Color.White.copy(alpha = 0.14f),
+        bg = Color(0x3DFFFFFF),
+        fg = Color.White, subtle = Color.White.copy(alpha = 0.82f), border = Color.White.copy(alpha = 0.28f),
+        glass = true,
     )
     TileStyle.LIGHT -> TilePalette(Color(0xF5FFFFFF), Color(0xFF111111), Color(0xFF6E6E73), Color.Transparent)
     TileStyle.DARK -> TilePalette(Color(0xEB1C1C1E), Color.White, Color(0xFF9A9AA0), Color.Transparent)

@@ -70,7 +70,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.panel.launcher.LauncherViewModel
 import com.panel.launcher.data.AppEntry
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
 private sealed interface SideRow {
     data class Header(val letter: String) : SideRow
@@ -84,7 +88,13 @@ private fun letterOf(label: String): String {
 
 /** Slide-in side panel with every app, A–Z, plus search. */
 @Composable
-fun BoxScope.Sidebar(visible: Boolean, vm: LauncherViewModel, onClose: () -> Unit, onSettings: () -> Unit) {
+fun BoxScope.Sidebar(
+    visible: Boolean,
+    vm: LauncherViewModel,
+    focusSearch: Boolean,
+    onClose: () -> Unit,
+    onSettings: () -> Unit,
+) {
     val left = vm.prefs.sidebarOnLeft
     AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut()) {
         Box(
@@ -98,7 +108,7 @@ fun BoxScope.Sidebar(visible: Boolean, vm: LauncherViewModel, onClose: () -> Uni
         enter = slideInHorizontally(tween(260)) { if (left) -it else it },
         exit = slideOutHorizontally(tween(220)) { if (left) -it else it },
     ) {
-        SidebarContent(vm, left, visible, onClose, onSettings)
+        SidebarContent(vm, left, visible, focusSearch, onClose, onSettings)
     }
 }
 
@@ -108,10 +118,20 @@ private fun SidebarContent(
     vm: LauncherViewModel,
     left: Boolean,
     visible: Boolean,
+    focusSearch: Boolean,
     onClose: () -> Unit,
     onSettings: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
+    val searchFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(visible, focusSearch) {
+        if (visible && focusSearch) {
+            delay(200) // let the slide-in start first
+            runCatching { searchFocus.requestFocus() }
+            keyboard?.show()
+        }
+    }
     val focus = LocalFocusManager.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
@@ -186,7 +206,7 @@ private fun SidebarContent(
                         keyboardActions = KeyboardActions(onGo = {
                             (rows.firstOrNull { it is SideRow.App } as? SideRow.App)?.let { open(it.app) }
                         }),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().focusRequester(searchFocus),
                     )
                 }
             }

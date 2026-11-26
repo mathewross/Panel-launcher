@@ -16,7 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,21 +49,26 @@ fun Tile(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     padding: Dp = 14.dp,
+    shape: Shape = TileShape,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val p = LocalTiles.current
     val haptics = LocalHapticFeedback.current
     var m = modifier
-        .clip(TileShape)
+        .clip(shape)
         .background(p.bg)
-        .border(0.5.dp, p.border, TileShape)
+        .border(0.75.dp, p.border, shape)
     if (onClick != null || onLongClick != null) {
         m = m.combinedClickable(
             onClick = { onClick?.invoke() },
             onLongClick = onLongClick?.let { { haptics.performHapticFeedback(HapticFeedbackType.LongPress); it() } },
         )
     }
-    Box(m.padding(padding), content = content)
+    // On see-through glass, give text a soft shadow so it reads on bright wallpapers too.
+    val style = if (p.glass) LocalTextStyle.current.merge(TextStyle(shadow = WallpaperText.shadow)) else LocalTextStyle.current
+    CompositionLocalProvider(LocalTextStyle provides style) {
+        Box(m.padding(padding), content = content)
+    }
 }
 
 @Composable

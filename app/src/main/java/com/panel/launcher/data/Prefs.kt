@@ -8,6 +8,7 @@ import kotlin.reflect.KProperty
 
 enum class HeaderStyle { BOXES, GLANCE }
 enum class TileStyle { GLASS, LIGHT, DARK }
+enum class DockPosition { RIGHT, LEFT, BOTTOM }
 
 /** Persistent settings, exposed as Compose state so the UI updates as soon as they change. */
 class Prefs(context: Context) {
@@ -53,7 +54,9 @@ class Prefs(context: Context) {
     private var headerStyleName by string("header_style", HeaderStyle.BOXES.name)
     private var tileStyleName by string("tile_style", TileStyle.GLASS.name)
     var columns by int("columns", 4)
-    var iconRoundness by int("icon_roundness", 24) // percent of icon size
+    var iconRoundness by int("icon_roundness", 50) // percent of icon size; 50 = circle
+    private var dockPositionName by string("dock_position", DockPosition.RIGHT.name)
+    var showUpNext by bool("show_up_next", true)
     var showLabels by bool("show_labels", true)
     var sidebarOnLeft by bool("sidebar_left", false)
     var showAlarm by bool("show_alarm", true)
@@ -75,6 +78,10 @@ class Prefs(context: Context) {
     var headerStyle: HeaderStyle
         get() = runCatching { HeaderStyle.valueOf(headerStyleName) }.getOrDefault(HeaderStyle.BOXES)
         set(v) { headerStyleName = v.name }
+
+    var dockPosition: DockPosition
+        get() = runCatching { DockPosition.valueOf(dockPositionName) }.getOrDefault(DockPosition.RIGHT)
+        set(v) { dockPositionName = v.name }
 
     var tileStyle: TileStyle
         get() = runCatching { TileStyle.valueOf(tileStyleName) }.getOrDefault(TileStyle.GLASS)
