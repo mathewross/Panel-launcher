@@ -45,7 +45,7 @@ Installing a newer build updates the app in place and keeps your layout.
 | Long-press the weather box | Refresh the weather now |
 | Tap **Up next** | Open the agenda: upcoming events grouped by day |
 | Tap an event | Open that event in your calendar app |
-| Swipe left (or tap the handle on the right edge) | Open the side panel with all apps, A–Z, plus search |
+| Swipe left (or tap the handle on the right edge) | Open the side panel with all apps, A–Z, plus search. Start the swipe away from the screen edge, because an edge swipe is Android's Back gesture |
 | Long-press an app in the side panel | Add to home / add to dock / app info / uninstall |
 | Long-press an app on home or in the dock | Reorder, remove, app info, uninstall |
 | ⚙️ in the side panel | Settings |

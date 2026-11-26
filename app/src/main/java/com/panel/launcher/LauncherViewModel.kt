@@ -202,6 +202,16 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openWeather(): Boolean {
         appsByKey[prefs.weatherApp]?.let { launch(it); return true }
+        // Default to a known weather app if one is installed (Pixel Weather first).
+        val known = listOf(
+            "com.google.android.apps.weather",
+            "com.samsung.android.weather",
+            "com.sec.android.daemonapp",
+            "com.accuweather.android",
+            "com.weather.Weather",
+        )
+        known.firstNotNullOfOrNull { pkg -> apps.firstOrNull { it.packageName == pkg } }
+            ?.let { launch(it); return true }
         return false
     }
 
