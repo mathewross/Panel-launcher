@@ -62,6 +62,7 @@ class Prefs(context: Context) {
     var filterAgenda by bool("filter_agenda", false)
     var upNextAllDay by bool("up_next_all_day", true)
     var showMusic by bool("show_music", true)
+    var foldersJson by string("folders", "{}")
     var wallpaperTone by string("wallpaper_tone", "auto") // auto | light | dark
     var iconScale by int("icon_scale", 100) // percent
 

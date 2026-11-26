@@ -34,6 +34,9 @@ import kotlinx.coroutines.launch
 /** Marks an empty cell in the home grid. */
 const val EMPTY_SLOT = "-"
 
+/** Grid slots holding a folder are "folder:<id>". */
+const val FOLDER_PREFIX = "folder:"
+
 /** Which app a header tile should open when the user hasn't chosen one yet. */
 enum class PickTarget { WEATHER, CLOCK, CALENDAR }
 
@@ -310,29 +313,148 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Home / dock editing ----------
 
-    fun isFavorite(app: AppEntry) = app.key in prefs.favorites
+    // ---------- Home grid slots & folders ----------
+    //
+    // Home apps are stored as grid slots in reading order. A slot holds an app key, a folder
+    // token ("folder:<id>") or EMPTY_SLOT, so things can sit anywhere with gaps between.
+
+    var folders by mutableStateOf(com.panel.launcher.data.Folders.load(prefs.foldersJson)); private set
+
+    private fun saveFolders(map: Map<String, com.panel.launcher.data.Folder>) {
+        folders = map
+        prefs.foldersJson = com.panel.launcher.data.Folders.save(map)
+    }
+
+    fun folderOf(slot: String): com.panel.launcher.data.Folder? =
+        if (slot.startsWith(FOLDER_PREFIX)) folders[slot.removePrefix(FOLDER_PREFIX)] else null
+
+    fun folderApps(f: com.panel.launcher.data.Folder): List<AppEntry> = f.apps.mapNotNull { appsByKey[it] }
+
+    /** True when a slot has something to show (an installed app, or a folder with installed apps). */
+    fun occupied(slot: String?): Boolean = when {
+        slot == null || slot == EMPTY_SLOT -> false
+        slot.startsWith(FOLDER_PREFIX) -> folderOf(slot)?.let { folderApps(it).isNotEmpty() } == true
+        else -> slot in appsByKey
+    }
+
+    fun isFavorite(app: AppEntry) =
+        app.key in prefs.favorites || folders.values.any { app.key in it.apps }
+
     fun isDocked(app: AppEntry) = app.key in prefs.dock
 
-    /**
-     * Home apps are stored as grid slots in reading order; [EMPTY_SLOT] marks a gap, so apps can
-     * sit anywhere. Removing an app leaves a gap; adding one fills the first gap.
-     */
-    fun toggleFavorite(app: AppEntry) {
-        val slots = prefs.favorites.toMutableList()
-        val i = slots.indexOf(app.key)
-        if (i >= 0) {
-            slots[i] = EMPTY_SLOT
-        } else {
-            val gap = slots.indexOfFirst { it == EMPTY_SLOT || it !in appsByKey }
-            if (gap >= 0) slots[gap] = app.key else slots += app.key
-        }
-        prefs.favorites = trimSlots(slots)
+    private fun placeInFirstGap(slots: MutableList<String>, item: String) {
+        val gap = slots.indexOfFirst { !occupied(it) }
+        if (gap >= 0) slots[gap] = item else slots += item
     }
 
     fun trimSlots(slots: List<String>): List<String> {
         var end = slots.size
-        while (end > 0 && (slots[end - 1] == EMPTY_SLOT || slots[end - 1] !in appsByKey)) end--
+        while (end > 0 && !occupied(slots[end - 1])) end--
         return slots.subList(0, end).toList()
+    }
+
+    /** Add to home (first free cell), or remove from home / its folder. */
+    fun toggleFavorite(app: AppEntry) {
+        val slots = prefs.favorites.toMutableList()
+        val inFolder = folders.values.firstOrNull { app.key in it.apps }
+        when {
+            inFolder != null -> { removeFromFolder(inFolder.id, app.key, backToHome = false); return }
+            app.key in slots -> slots[slots.indexOf(app.key)] = EMPTY_SLOT
+            else -> placeInFirstGap(slots, app.key)
+        }
+        prefs.favorites = trimSlots(slots)
+    }
+
+    /**
+     * Drop the thing from cell [from] onto cell [to]. Empty cell: move it there. App onto app:
+     * make a folder. App onto folder: add it. Folder onto anything: swap. Returns the new slots.
+     */
+    fun dropSlot(current: List<String>, from: Int, to: Int): List<String> {
+        val slots = current.toMutableList()
+        while (slots.size <= maxOf(from, to)) slots += EMPTY_SLOT
+        val moving = slots[from]
+        val target = slots[to]
+        val movingIsApp = moving in appsByKey
+        when {
+            !occupied(target) -> { slots[to] = moving; slots[from] = EMPTY_SLOT }
+            movingIsApp && target in appsByKey -> {
+                val id = System.currentTimeMillis().toString(36)
+                saveFolders(folders + (id to com.panel.launcher.data.Folder(id, "Folder", listOf(target, moving))))
+                slots[to] = FOLDER_PREFIX + id
+                slots[from] = EMPTY_SLOT
+            }
+            movingIsApp && folderOf(target) != null -> {
+                val f = folderOf(target)!!
+                saveFolders(folders + (f.id to f.copy(apps = f.apps + moving)))
+                slots[from] = EMPTY_SLOT
+            }
+            else -> { slots[to] = moving; slots[from] = target }
+        }
+        val result = trimSlots(slots)
+        prefs.favorites = result
+        return result
+    }
+
+    /** Puts [appKey] in folder [folderId] (or a new folder when null), taking it off the grid. */
+    fun addToFolder(folderId: String?, appKey: String, newName: String = "Folder") {
+        val slots = prefs.favorites.toMutableList()
+        val wasAt = slots.indexOf(appKey)
+        if (wasAt >= 0) slots[wasAt] = EMPTY_SLOT
+        // Leave any other folder it was in.
+        var map = folders.mapValues { (_, f) -> if (appKey in f.apps) f.copy(apps = f.apps - appKey) else f }
+        if (folderId != null && map[folderId] != null) {
+            val f = map.getValue(folderId)
+            map = map + (folderId to f.copy(apps = f.apps + appKey))
+        } else {
+            val id = System.currentTimeMillis().toString(36)
+            map = map + (id to com.panel.launcher.data.Folder(id, newName, listOf(appKey)))
+            if (wasAt >= 0) slots[wasAt] = FOLDER_PREFIX + id else placeInFirstGap(slots, FOLDER_PREFIX + id)
+        }
+        saveFolders(map)
+        prefs.favorites = trimSlots(cleanupFolders(slots))
+    }
+
+    fun removeFromFolder(folderId: String, appKey: String, backToHome: Boolean = true) {
+        val f = folders[folderId] ?: return
+        saveFolders(folders + (folderId to f.copy(apps = f.apps - appKey)))
+        val slots = prefs.favorites.toMutableList()
+        if (backToHome) placeInFirstGap(slots, appKey)
+        prefs.favorites = trimSlots(cleanupFolders(slots))
+    }
+
+    fun renameFolder(folderId: String, name: String) {
+        val f = folders[folderId] ?: return
+        saveFolders(folders + (folderId to f.copy(name = name)))
+    }
+
+    /** Ungroup: the folder's apps go back onto the grid, starting where the folder was. */
+    fun dissolveFolder(folderId: String) {
+        val f = folders[folderId] ?: return
+        val slots = prefs.favorites.toMutableList()
+        val at = slots.indexOf(FOLDER_PREFIX + folderId)
+        val apps = f.apps.filter { it in appsByKey }
+        if (at >= 0) slots[at] = EMPTY_SLOT
+        saveFolders(folders - folderId)
+        apps.forEachIndexed { i, key -> if (i == 0 && at >= 0) slots[at] = key else placeInFirstGap(slots, key) }
+        prefs.favorites = trimSlots(slots)
+    }
+
+    /** A folder with one app becomes that app; an empty one disappears. */
+    private fun cleanupFolders(slots: MutableList<String>): MutableList<String> {
+        var map = folders
+        for (i in slots.indices) {
+            val f = folderOf(slots[i]) ?: continue
+            val apps = f.apps.filter { it in appsByKey }
+            if (apps.size <= 1) {
+                slots[i] = apps.firstOrNull() ?: EMPTY_SLOT
+                map = map - f.id
+            }
+        }
+        // Drop folders that are no longer on the grid at all.
+        val onGrid = slots.filter { it.startsWith(FOLDER_PREFIX) }.map { it.removePrefix(FOLDER_PREFIX) }.toSet()
+        map = map.filterKeys { it in onGrid }
+        if (map != folders) saveFolders(map)
+        return slots
     }
 
     fun toggleDock(app: AppEntry) {

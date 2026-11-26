@@ -66,7 +66,11 @@ Installing a newer build updates the app in place and keeps your layout.
 | Tap an event | Open that event in your calendar app |
 | Swipe left | Also opens all apps. The panel follows your finger, and a flick opens or closes it. Start away from the screen edge, because an edge swipe is Android's Back gesture |
 | Long-press an app in the side panel | Add to home / add to dock / app info / uninstall |
-| Long-press an app on the home grid and **drag** | Put it in any cell, gaps allowed (like the Pixel launcher). Dropping on another app swaps the two |
+| Long-press an app on the home grid and **drag** | Put it in any cell, gaps allowed (like the Pixel launcher) |
+| Drag an app **onto another app** | Make a folder. Drag more apps onto it to add them |
+| Tap a folder | Open it; tap its name to rename (e.g. "Finance"). Long-press an app inside to remove it |
+| Long-press a folder | Move it, or *Ungroup* to put its apps back on the grid |
+| App panel › long-press › *Add to folder…* | Put an app straight into a folder, or start a new one |
 | Long-press an app without moving | Menu: remove, add to dock, app info, uninstall |
 | Long-press an app in the dock | Move up/down, remove, app info, uninstall |
 | ⚙️ at the bottom (or in the app panel) | Settings |

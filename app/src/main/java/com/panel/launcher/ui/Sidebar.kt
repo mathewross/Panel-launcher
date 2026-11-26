@@ -97,6 +97,7 @@ fun BoxScope.Sidebar(
     progress: () -> Float,
     vm: LauncherViewModel,
     focusSearch: Boolean,
+    onAddToFolder: (AppEntry) -> Unit,
     drag: Modifier,
     onClose: () -> Unit,
     onSettings: () -> Unit,
@@ -122,7 +123,7 @@ fun BoxScope.Sidebar(
             }
             .then(drag),
     ) {
-        SidebarContent(vm, left, shown, focusSearch, onClose, onSettings)
+        SidebarContent(vm, left, shown, focusSearch, onAddToFolder, onClose, onSettings)
     }
 }
 
@@ -133,6 +134,7 @@ private fun SidebarContent(
     left: Boolean,
     visible: Boolean,
     focusSearch: Boolean,
+    onAddToFolder: (AppEntry) -> Unit,
     onClose: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -230,7 +232,7 @@ private fun SidebarContent(
                             r.letter, color = Color(0xFF8E8E93), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 4.dp),
                         )
-                        is SideRow.App -> SidebarApp(vm, r.app) { open(r.app) }
+                        is SideRow.App -> SidebarApp(vm, r.app, onAddToFolder) { open(r.app) }
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
@@ -246,7 +248,7 @@ private fun SidebarContent(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SidebarApp(vm: LauncherViewModel, app: AppEntry, onOpen: () -> Unit) {
+private fun SidebarApp(vm: LauncherViewModel, app: AppEntry, onAddToFolder: (AppEntry) -> Unit, onOpen: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     Box {
@@ -269,6 +271,7 @@ private fun SidebarApp(vm: LauncherViewModel, app: AppEntry, onOpen: () -> Unit)
             val items = buildList<Pair<String, () -> Unit>> {
                 add((if (vm.isFavorite(app)) "Remove from home" else "Add to home") to { vm.toggleFavorite(app) })
                 add((if (vm.isDocked(app)) "Remove from dock" else "Add to dock") to { vm.toggleDock(app) })
+                add("Add to folder…" to { onAddToFolder(app) })
                 add("App info" to { vm.repo.openAppInfo(app) })
                 add("Uninstall" to { vm.repo.uninstall(app) })
             }

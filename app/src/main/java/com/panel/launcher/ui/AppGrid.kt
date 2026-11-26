@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.panel.launcher.EMPTY_SLOT
 import com.panel.launcher.LauncherViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -64,7 +63,13 @@ private fun Offset.round() = IntOffset(x.roundToInt(), y.roundToInt())
  * two); long-press without moving shows the app's menu.
  */
 @Composable
-fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Modifier = Modifier) {
+fun FreeAppGrid(
+    vm: LauncherViewModel,
+    columns: Int,
+    iconSize: Dp,
+    onOpenFolder: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
@@ -85,7 +90,7 @@ fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Mod
         val cellW = maxWidth / columns
         val cellH = iconSize + 12.dp + (if (showLabels) 24.dp else 0.dp) + 8.dp
         val rowsFit = max(1, (maxHeight / cellH).toInt())
-        val lastUsed = slots.indexOfLast { byKey.containsKey(it) }
+        val lastUsed = slots.indexOfLast { vm.occupied(it) }
         val rows = max(rowsFit, lastUsed / columns + 1)
         val cellWpx = with(density) { cellW.toPx() }
         val cellHpx = with(density) { cellH.toPx() }
@@ -108,7 +113,7 @@ fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Mod
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val from = indexAt(down.position)
-                            val key = slots.getOrNull(from)?.takeIf { byKey.containsKey(it) } ?: return@awaitEachGesture
+                            val key = slots.getOrNull(from)?.takeIf { vm.occupied(it) } ?: return@awaitEachGesture
 
                             // Phase 1: tap, scroll, or long-press?
                             val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
@@ -126,7 +131,11 @@ fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Mod
                                 result
                             }
                             when (outcome) {
-                                TAP -> { byKey[key]?.let { vm.launch(it) }; return@awaitEachGesture }
+                                TAP -> {
+                                    val folder = vm.folderOf(key)
+                                    if (folder != null) onOpenFolder(folder.id) else byKey[key]?.let { vm.launch(it) }
+                                    return@awaitEachGesture
+                                }
                                 CANCEL -> return@awaitEachGesture
                             }
 
@@ -162,14 +171,8 @@ fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Mod
                             val target = hoverIndex
                             var finalIndex = from
                             if (target >= 0 && target != from) {
-                                val list = slots.toMutableList()
-                                while (list.size <= max(target, from)) list += EMPTY_SLOT
-                                val other = list[target]
-                                list[target] = key
-                                list[from] = if (byKey.containsKey(other)) other else EMPTY_SLOT
-                                while (list.isNotEmpty() && list.last() == EMPTY_SLOT) list.removeAt(list.lastIndex)
-                                slots = list
-                                vm.prefs.favorites = list
+                                // Empty cell: move. Onto an app: new folder. Onto a folder: add to it.
+                                slots = vm.dropSlot(slots, from, target)
                                 finalIndex = target
                             }
                             // Glide from where it was dropped into its cell.
@@ -202,7 +205,8 @@ fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Mod
                 }
                 slots.forEachIndexed { index, k ->
                     val app = byKey[k]
-                    if (app != null) key(k) {
+                    val folder = vm.folderOf(k)?.takeIf { vm.occupied(k) }
+                    if (app != null || folder != null) key(k) {
                         val animated by animateIntOffsetAsState(slotOffset(index), label = "slot")
                         val dragging = k == draggingKey
                         val settling = k == settleKey
@@ -224,9 +228,14 @@ fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Mod
                                 },
                             contentAlignment = Alignment.TopCenter,
                         ) {
-                            AppVisual(app, iconSize, vm.prefs.iconRoundness, showLabels)
+                            if (app != null) AppVisual(app, iconSize, vm.prefs.iconRoundness, showLabels)
+                            else if (folder != null) FolderVisual(vm, folder, iconSize, showLabels)
                             DropdownMenu(expanded = menuKey == k, onDismissRequest = { menuKey = null }) {
-                                homeMenu(vm, app, inDock = false).forEach { a ->
+                                val items = if (app != null) homeMenu(vm, app, inDock = false) else listOf(
+                                    MenuAction("Open") { folder?.let { onOpenFolder(it.id) } },
+                                    MenuAction("Ungroup") { folder?.let { vm.dissolveFolder(it.id) } },
+                                )
+                                items.forEach { a ->
                                     DropdownMenuItem(text = { Text(a.label) }, onClick = { menuKey = null; a.run() })
                                 }
                             }

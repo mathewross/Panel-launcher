@@ -91,6 +91,8 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     var agenda by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf<PickTarget?>(null) }
     var focusSearch by remember { mutableStateOf(false) }
+    var openFolder by rememberSaveable { mutableStateOf<String?>(null) }
+    var folderPickFor by remember { mutableStateOf<AppEntry?>(null) }
 
     // ---- App panel: 0 = closed, 1 = open. Follows your finger while you swipe. ----
     val scope = rememberCoroutineScope()
@@ -133,11 +135,15 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
 
     // Pressing Home while already home closes whatever is open.
     LaunchedEffect(homePresses) {
-        if (homePresses > 0) { panel.snapTo(0f); focusSearch = false; settings = false; agenda = false }
+        if (homePresses > 0) { panel.snapTo(0f); focusSearch = false; settings = false; agenda = false; openFolder = null }
     }
     BackHandler(enabled = true) { /* the home screen itself has nowhere to go back to */ }
-    BackHandler(enabled = panelOpen || settings) {
-        if (settings) settings = false else closePanel()
+    BackHandler(enabled = panelOpen || settings || openFolder != null) {
+        when {
+            settings -> settings = false
+            openFolder != null -> openFolder = null
+            else -> closePanel()
+        }
     }
 
     // Dark status-bar icons over a light wallpaper (but not over the dark panel or settings).
@@ -237,7 +243,10 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                         Column(Modifier.weight(1f)) {
                             Header(vm, actions)
                             Spacer(Modifier.height(20.dp))
-                            FavoritesGrid(vm, onOpenSidebar = { openPanel(false) }, modifier = Modifier.weight(1f))
+                            FavoritesGrid(
+                                vm, onOpenSidebar = { openPanel(false) }, onOpenFolder = { openFolder = it },
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                         if (dockPos == DockPosition.RIGHT) {
                             Spacer(Modifier.width(12.dp))
@@ -253,8 +262,11 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 )
             }
 
+            FolderOverlay(vm, openFolder) { openFolder = null }
+
             Sidebar(
                 progress = { panel.value }, vm = vm, focusSearch = focusSearch,
+                onAddToFolder = { folderPickFor = it },
                 drag = panelDragModifier,
                 onClose = closePanel,
                 onSettings = { settings = true },
@@ -273,6 +285,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
         }
 
         if (agenda) AgendaSheet(vm) { agenda = false }
+        folderPickFor?.let { app -> FolderPickerDialog(vm, app) { folderPickFor = null } }
 
         picker?.let { target ->
             val title = when (target) {
@@ -306,8 +319,13 @@ private fun iconSizeFor(columns: Int, withRail: Boolean): Dp = when {
 }
 
 @Composable
-private fun FavoritesGrid(vm: LauncherViewModel, onOpenSidebar: () -> Unit, modifier: Modifier) {
-    val favs = vm.prefs.favorites.mapNotNull { vm.appsByKey[it] }
+private fun FavoritesGrid(
+    vm: LauncherViewModel,
+    onOpenSidebar: () -> Unit,
+    onOpenFolder: (String) -> Unit,
+    modifier: Modifier,
+) {
+    val favs = vm.prefs.favorites.filter { vm.occupied(it) }
     if (favs.isEmpty()) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             if (vm.apps.isNotEmpty()) {
@@ -324,7 +342,7 @@ private fun FavoritesGrid(vm: LauncherViewModel, onOpenSidebar: () -> Unit, modi
     }
     val cols = vm.prefs.columns
     FreeAppGrid(
-        vm = vm, columns = cols,
+        vm = vm, columns = cols, onOpenFolder = onOpenFolder,
         iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f),
         modifier = modifier,
     )
