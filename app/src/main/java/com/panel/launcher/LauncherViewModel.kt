@@ -201,7 +201,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshApps() {
         viewModelScope.launch {
-            val list = repo.load()
+            val list = repo.load(prefs.iconStyle, prefs.iconPack)
             apps = list
             appsByKey = list.associateBy { it.key }
             if (!prefs.initialized && list.isNotEmpty()) {
@@ -550,6 +550,15 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         val sbm = ctx.getSystemService("statusbar")
         Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(sbm)
     }.isSuccess
+
+    fun iconPacks(): List<com.panel.launcher.data.IconPacks.Pack> =
+        com.panel.launcher.data.IconPacks.installed(ctx)
+
+    fun setIconStyle(style: String, pack: String = prefs.iconPack) {
+        prefs.iconStyle = style
+        prefs.iconPack = pack
+        refreshApps()
+    }
 
     fun recentApps(n: Int): List<AppEntry> = prefs.recentApps.mapNotNull { appsByKey[it] }.take(n)
 

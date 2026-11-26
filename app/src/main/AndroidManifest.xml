@@ -24,6 +24,11 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <package android:name="com.spotify.music" />
+        <!-- Icon packs (ADW / Nova format) -->
+        <intent><action android:name="org.adw.launcher.THEMES" /></intent>
+        <intent><action android:name="com.novalauncher.THEME" /></intent>
+        <intent><action android:name="com.teslacoilsw.launcher.THEME" /></intent>
+        <intent><action android:name="com.gau.go.launcherex.theme" /></intent>
     </queries>
 
     <application

@@ -41,7 +41,17 @@ class AppRepository(private val context: Context) {
     private val userManager = context.getSystemService(UserManager::class.java)
     private val iconPx = (context.resources.displayMetrics.density * 64).toInt().coerceAtLeast(96)
 
-    suspend fun load(): List<AppEntry> = withContext(Dispatchers.IO) {
+    /**
+     * [iconStyle]: "original", "themed" (Pixel-style monochrome icons) or "pack" (use [iconPack]).
+     */
+    suspend fun load(iconStyle: String = "original", iconPack: String = ""): List<AppEntry> = withContext(Dispatchers.IO) {
+        val pack = if (iconStyle == "pack" && iconPack.isNotBlank()) IconPacks.load(context, iconPack) else null
+        fun iconFor(info: android.content.pm.LauncherActivityInfo): android.graphics.Bitmap {
+            val original = info.getIcon(0)
+            pack?.drawableFor(info.componentName)?.let { return IconPacks.renderPackIcon(it, iconPx) }
+            if (iconStyle == "themed") IconPacks.themed(context, original, iconPx)?.let { return it }
+            return renderIcon(original, iconPx)
+        }
         userManager.userProfiles.flatMap { user ->
             val serial = userManager.getSerialNumberForUser(user)
             launcherApps.getActivityList(null, user)
@@ -52,7 +62,7 @@ class AppRepository(private val context: Context) {
                         label = info.label?.toString()?.trim().orEmpty().ifEmpty { info.componentName.packageName },
                         component = info.componentName,
                         user = user,
-                        icon = renderIcon(info.getIcon(0), iconPx).asImageBitmap(),
+                        icon = iconFor(info).asImageBitmap(),
                     )
                 }
         }.sortedBy { it.label.lowercase() }

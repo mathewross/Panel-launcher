@@ -104,6 +104,24 @@ of app panel*). It counts launches made through Panel, so no usage-access permis
 - Weather units, city (or device location), and which app the weather box opens.
 - Which apps the clock and calendar open (defaults to the system ones).
 
+### Look & feel
+
+- **Frosted glass**: boxes, dock, folders and the bottom bar blur the wallpaper behind them.
+  Panel needs to see the wallpaper for this: choose it as the *Panel wallpaper photo* (you can
+  also set it as the phone's wallpaper from there), or allow *All files access*, the only way
+  Android shares the system wallpaper with apps. Otherwise a translucent gradient is used.
+- **Long-press menus**: the app lifts, the rest of the screen blurs, and a rounded menu appears
+  (Uninstall in red).
+- **Icons**: Original, Pixel-style *Themed* (Material You colours, Android 13+), or any
+  Nova/ADW-format **icon pack** from the Play Store.
+- **Motion**: apps open out of their icon, and the home screen zooms away and settles back
+  when you return. Folders open out of their icon. The app's "shrink back into the icon"
+  close animation is reserved by Android for the phone's built-in launcher, so no
+  downloaded launcher can do it.
+- **Gestures**: swipe down anywhere for notifications, swipe up for the app panel. The home
+  screen can stay portrait even with auto-rotate on.
+- **Pixel font** (Google Sans) throughout, on by default.
+
 ### Big clock with depth effect
 
 Like the iOS lock screen: a huge clock that the subject of your wallpaper stands in front of.

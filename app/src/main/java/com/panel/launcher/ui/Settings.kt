@@ -209,6 +209,37 @@ private fun SettingsBody(
         }
     }
 
+    Group("Icons") {
+        ChoiceRow(
+            "Icon style",
+            listOf("Original" to "original", "Themed" to "themed", "Icon pack" to "pack"),
+            p.iconStyle,
+        ) { vm.setIconStyle(it) }
+        if (p.iconStyle == "themed") {
+            Text(
+                "Pixel-style themed icons in your wallpaper colours. Apps that don't provide one keep their normal icon.",
+                color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+            )
+        }
+        if (p.iconStyle == "pack") {
+            val packs = remember { vm.iconPacks() }
+            if (packs.isEmpty()) {
+                Text(
+                    "No icon packs installed. Get one from the Play Store (search \"icon pack\"; Nova/ADW " +
+                        "compatible packs work), then pick it here.",
+                    color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                )
+            }
+            packs.forEach { pack ->
+                Divider()
+                ActionRow(
+                    (if (p.iconPack == pack.packageName) "✓  " else "") + pack.label,
+                    null, if (p.iconPack == pack.packageName) Blue else null,
+                ) { vm.setIconStyle("pack", pack.packageName) }
+            }
+        }
+    }
+
     Group("Time & date box numbers") {
         SliderRow("Size", p.boxNumberScale, 70..150, "${p.boxNumberScale}%") { p.boxNumberScale = it }
         Divider()
