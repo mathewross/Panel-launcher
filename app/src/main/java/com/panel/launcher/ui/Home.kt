@@ -2,6 +2,8 @@ package com.panel.launcher.ui
 
 import android.Manifest
 import android.app.Activity
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.Orientation
@@ -222,19 +224,25 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                 if (bigClock) {
                     Spacer(Modifier.height(with(density) { clockHeight.toDp() } + 8.dp))
                 }
-                Row(Modifier.weight(1f)) {
-                    if (dockPos == DockPosition.LEFT) {
-                        SideRail(vm, actions)
-                        Spacer(Modifier.width(12.dp))
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Header(vm, actions)
-                        Spacer(Modifier.height(20.dp))
-                        FavoritesGrid(vm, onOpenSidebar = { openPanel(false) }, modifier = Modifier.weight(1f))
-                    }
-                    if (dockPos == DockPosition.RIGHT) {
-                        Spacer(Modifier.width(12.dp))
-                        SideRail(vm, actions)
+                BoxWithConstraints(Modifier.weight(1f)) {
+                    // Size of the square time/date boxes, so the weather pill can grow to match.
+                    val boxSize = if (vm.prefs.headerStyle == HeaderStyle.BOXES) {
+                        (maxWidth - 68.dp - 12.dp - 12.dp) / 2
+                    } else null
+                    Row(Modifier.fillMaxSize()) {
+                        if (dockPos == DockPosition.LEFT) {
+                            SideRail(vm, actions, boxSize)
+                            Spacer(Modifier.width(12.dp))
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Header(vm, actions)
+                            Spacer(Modifier.height(20.dp))
+                            FavoritesGrid(vm, onOpenSidebar = { openPanel(false) }, modifier = Modifier.weight(1f))
+                        }
+                        if (dockPos == DockPosition.RIGHT) {
+                            Spacer(Modifier.width(12.dp))
+                            SideRail(vm, actions, boxSize)
+                        }
                     }
                 }
                 if (dockPos == DockPosition.BOTTOM) Dock(vm)
@@ -315,8 +323,8 @@ private fun FavoritesGrid(vm: LauncherViewModel, onOpenSidebar: () -> Unit, modi
         return
     }
     val cols = vm.prefs.columns
-    ReorderableAppGrid(
-        vm = vm, apps = favs, columns = cols,
+    FreeAppGrid(
+        vm = vm, columns = cols,
         iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f),
         modifier = modifier,
     )
@@ -351,8 +359,6 @@ fun homeMenu(vm: LauncherViewModel, app: AppEntry, inDock: Boolean): List<MenuAc
         add(MenuAction(if (vertical) "Move down" else "Move right") { vm.moveDock(app, 1) })
         add(MenuAction("Remove from dock") { vm.toggleDock(app) })
     } else {
-        add(MenuAction("Move earlier") { vm.moveFavorite(app, -1) })
-        add(MenuAction("Move later") { vm.moveFavorite(app, 1) })
         add(MenuAction("Remove from home") { vm.toggleFavorite(app) })
         if (!vm.isDocked(app)) add(MenuAction("Add to dock") { vm.toggleDock(app) })
     }
@@ -360,47 +366,73 @@ fun homeMenu(vm: LauncherViewModel, app: AppEntry, inDock: Boolean): List<MenuAc
     add(MenuAction("Uninstall") { vm.repo.uninstall(app) })
 }
 
-/** Folio-style vertical rail: a weather pill on top, the dock as a tall pill below. */
+/**
+ * Folio-style vertical rail: a weather pill on top and the dock as a tall pill below. As the
+ * dock is moved lower, the weather pill grows into the space, up to the size of the boxes.
+ */
 @Composable
-private fun SideRail(vm: LauncherViewModel, actions: HeaderActions) {
+private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?) {
     val p = LocalTiles.current
     val pill = RoundedCornerShape(36.dp)
+    val density = LocalDensity.current
     // Dock height (Settings): 0 = straight under the weather pill … 100 = bottom of the screen.
     val f = vm.prefs.dockHeight.coerceIn(0, 100) / 100f
-    Column(
-        Modifier.width(68.dp).fillMaxHeight(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    var dockH by remember { mutableStateOf(0.dp) }
+    BoxWithConstraints(Modifier.width(68.dp).fillMaxHeight()) {
+        val compact = 112.dp
+        val gap = 12.dp
+        val minTop = compact + gap
+        val maxTop = (maxHeight - dockH).coerceAtLeast(minTop)
+        val dockTop = minTop + (maxTop - minTop) * f
+        val target = if (boxSize != null) (dockTop - gap).coerceIn(compact, maxOf(compact, boxSize)) else compact
+        val pillH by animateDpAsState(target, label = "weatherPill")
+        val tall = pillH >= 150.dp
+
         Tile(
-            Modifier.fillMaxWidth(), onClick = actions.weather, onLongClick = actions.weatherLongPress,
+            Modifier.fillMaxWidth().height(pillH), onClick = actions.weather, onLongClick = actions.weatherLongPress,
             padding = 0.dp, shape = pill,
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                Modifier.fillMaxSize().padding(vertical = 12.dp, horizontal = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
                 val w = vm.weather
                 if (w == null) {
                     Text("🌤️", fontSize = 24.sp)
                     Text(if (vm.weatherLoading) "…" else "Set up", color = p.subtle, fontSize = 11.sp)
                 } else {
-                    Text(WeatherRepository.emoji(w.code, w.isDay), fontSize = 24.sp)
+                    Text(WeatherRepository.emoji(w.code, w.isDay), fontSize = if (tall) 30.sp else 24.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text(Fmt.temp(w.tempC, vm.prefs.fahrenheit), color = p.fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                    Text(Fmt.temp(w.tempC, vm.prefs.fahrenheit), color = p.fg, fontSize = if (tall) 24.sp else 20.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         "${Fmt.temp(w.maxC, vm.prefs.fahrenheit)} ${Fmt.temp(w.minC, vm.prefs.fahrenheit)}",
                         color = p.subtle, fontSize = 11.sp, maxLines = 1,
                     )
+                    if (tall) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            WeatherRepository.describe(w.code), color = p.fg, fontSize = 11.sp, maxLines = 2,
+                            textAlign = TextAlign.Center, lineHeight = 13.sp,
+                        )
+                        if (w.place.isNotBlank()) {
+                            Text(
+                                w.place, color = p.subtle, fontSize = 10.sp, maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        if (f > 0f) Spacer(Modifier.weight(f))
+
         val dock = vm.prefs.dock.mapNotNull { vm.appsByKey[it] }
         if (dock.isNotEmpty()) {
             Column(
                 Modifier
+                    .offset(y = dockTop)
                     .fillMaxWidth()
+                    .onSizeChanged { dockH = with(density) { it.height.toDp() } }
                     .clip(pill)
                     .background(p.bg)
                     .border(0.75.dp, p.border, pill)
@@ -416,7 +448,6 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions) {
                 }
             }
         }
-        if (f < 1f) Spacer(Modifier.weight(1f - f))
     }
 }
 

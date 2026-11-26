@@ -60,6 +60,7 @@ class Prefs(context: Context) {
     var dockHeight by int("dock_height", 0)              // 0 = top … 100 = bottom (side dock only)
     var upNextHiddenCalendars: List<String> by list("up_next_hidden_calendars") // calendar ids
     var filterAgenda by bool("filter_agenda", false)
+    var upNextAllDay by bool("up_next_all_day", true)
     var wallpaperTone by string("wallpaper_tone", "auto") // auto | light | dark
     var iconScale by int("icon_scale", 100) // percent
 

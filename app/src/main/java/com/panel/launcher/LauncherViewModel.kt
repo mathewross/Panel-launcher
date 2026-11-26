@@ -31,6 +31,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** Marks an empty cell in the home grid. */
+const val EMPTY_SLOT = "-"
+
 /** Which app a header tile should open when the user hasn't chosen one yet. */
 enum class PickTarget { WEATHER, CLOCK, CALENDAR }
 
@@ -49,7 +52,8 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     val upNextEvents: List<CalEvent>
         get() {
             val hidden = prefs.upNextHiddenCalendars.toSet()
-            return if (hidden.isEmpty()) events else events.filter { it.calendarId.toString() !in hidden }
+            val allDay = prefs.upNextAllDay
+            return events.filter { (allDay || !it.allDay) && it.calendarId.toString() !in hidden }
         }
 
     /** Events for the agenda sheet: everything, unless the agenda is set to follow the same filter. */
@@ -277,8 +281,26 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     fun isFavorite(app: AppEntry) = app.key in prefs.favorites
     fun isDocked(app: AppEntry) = app.key in prefs.dock
 
+    /**
+     * Home apps are stored as grid slots in reading order; [EMPTY_SLOT] marks a gap, so apps can
+     * sit anywhere. Removing an app leaves a gap; adding one fills the first gap.
+     */
     fun toggleFavorite(app: AppEntry) {
-        prefs.favorites = if (isFavorite(app)) prefs.favorites - app.key else prefs.favorites + app.key
+        val slots = prefs.favorites.toMutableList()
+        val i = slots.indexOf(app.key)
+        if (i >= 0) {
+            slots[i] = EMPTY_SLOT
+        } else {
+            val gap = slots.indexOfFirst { it == EMPTY_SLOT || it !in appsByKey }
+            if (gap >= 0) slots[gap] = app.key else slots += app.key
+        }
+        prefs.favorites = trimSlots(slots)
+    }
+
+    fun trimSlots(slots: List<String>): List<String> {
+        var end = slots.size
+        while (end > 0 && (slots[end - 1] == EMPTY_SLOT || slots[end - 1] !in appsByKey)) end--
+        return slots.subList(0, end).toList()
     }
 
     fun toggleDock(app: AppEntry) {

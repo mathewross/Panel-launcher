@@ -66,7 +66,7 @@ Installing a newer build updates the app in place and keeps your layout.
 | Tap an event | Open that event in your calendar app |
 | Swipe left | Also opens all apps. The panel follows your finger, and a flick opens or closes it. Start away from the screen edge, because an edge swipe is Android's Back gesture |
 | Long-press an app in the side panel | Add to home / add to dock / app info / uninstall |
-| Long-press an app on the home grid and **drag** | Move it; the other icons slide out of the way |
+| Long-press an app on the home grid and **drag** | Put it in any cell, gaps allowed (like the Pixel launcher). Dropping on another app swaps the two |
 | Long-press an app without moving | Menu: remove, add to dock, app info, uninstall |
 | Long-press an app in the dock | Move up/down, remove, app info, uninstall |
 | ⚙️ at the bottom (or in the app panel) | Settings |
@@ -81,10 +81,13 @@ Installing a newer build updates the app in place and keeps your layout.
 - **Dock**: right (Folio), left, or bottom. With the dock at the bottom, weather becomes a
   third box.
 - **Grid**: 3 to 7 columns, icon size 70–130%. Rows scroll, so there are as many as you need.
-- **Dock height**: slide the side dock anywhere from top to bottom.
+- **Dock height**: slide the side dock anywhere from top to bottom. As it moves down, the
+  weather pill above it grows (up to the size of the time and date boxes) and shows the
+  conditions and place.
 - **Up next calendars**: pick which calendars (e.g. personal and work, but not a shared
   family one) appear in Up next, Glance and the big clock line. The agenda still shows
-  everything unless you turn on *Filter the agenda too*.
+  everything unless you turn on *Filter the agenda too*. *Show all-day events in Up next*
+  hides things like birthdays and holidays from Up next.
 - Show or hide the Up next box, icon roundness (round by default),
   app names on or off, which side the app panel slides from, next alarm on or off.
 - Weather units, city (or device location), and which app the weather box opens.

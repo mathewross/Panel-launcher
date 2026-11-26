@@ -254,6 +254,8 @@ private fun SettingsBody(
                 }
             }
             Divider()
+            SwitchRow("Show all-day events in Up next", p.upNextAllDay) { p.upNextAllDay = it }
+            Divider()
             SwitchRow("Filter the agenda too", p.filterAgenda) { p.filterAgenda = it }
         }
     }

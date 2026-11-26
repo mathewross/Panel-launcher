@@ -1,27 +1,39 @@
 package com.panel.launcher.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateIntOffsetAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -29,138 +41,196 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.panel.launcher.EMPTY_SLOT
 import com.panel.launcher.LauncherViewModel
-import com.panel.launcher.data.AppEntry
+import kotlinx.coroutines.launch
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 private const val TAP = 1
 private const val CANCEL = 2
 
+private fun Offset.round() = IntOffset(x.roundToInt(), y.roundToInt())
+
 /**
- * Home-screen grid. Tap opens an app; long-press and drag moves it (the others slide out of
- * the way); long-press without moving shows the app's menu.
+ * Home-screen grid with fixed cells, like the Pixel launcher: an app can sit in any cell.
+ * Tap opens; long-press and drag moves it to any cell (dropping on another app swaps the
+ * two); long-press without moving shows the app's menu.
  */
 @Composable
-fun ReorderableAppGrid(
-    vm: LauncherViewModel,
-    apps: List<AppEntry>,
-    columns: Int,
-    iconSize: Dp,
-    modifier: Modifier = Modifier,
-) {
-    val gridState = rememberLazyGridState()
+fun FreeAppGrid(vm: LauncherViewModel, columns: Int, iconSize: Dp, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
-    val savedOrder = apps.map { it.key }
-    var order by remember { mutableStateOf(savedOrder) }
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val byKey by rememberUpdatedState(vm.appsByKey)
+    val saved = vm.prefs.favorites
+
+    var slots by remember { mutableStateOf(saved) }
     var draggingKey by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var hoverIndex by remember { mutableIntStateOf(-1) }
+    var settleKey by remember { mutableStateOf<String?>(null) }
+    val settle = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     var menuKey by remember { mutableStateOf<String?>(null) }
-    val byKey by rememberUpdatedState(apps.associateBy { it.key })
+    LaunchedEffect(saved) { if (draggingKey == null) slots = saved }
 
-    // Follow external changes (added/removed apps), but never in the middle of a drag.
-    LaunchedEffect(savedOrder) { if (draggingKey == null) order = savedOrder }
+    val showLabels = vm.prefs.showLabels
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val cellW = maxWidth / columns
+        val cellH = iconSize + 12.dp + (if (showLabels) 24.dp else 0.dp) + 8.dp
+        val rowsFit = max(1, (maxHeight / cellH).toInt())
+        val lastUsed = slots.indexOfLast { byKey.containsKey(it) }
+        val rows = max(rowsFit, lastUsed / columns + 1)
+        val cellWpx = with(density) { cellW.toPx() }
+        val cellHpx = with(density) { cellH.toPx() }
 
-    fun itemAt(pos: Offset): LazyGridItemInfo? = gridState.layoutInfo.visibleItemsInfo.firstOrNull { i ->
-        pos.x >= i.offset.x && pos.x < i.offset.x + i.size.width &&
-            pos.y >= i.offset.y && pos.y < i.offset.y + i.size.height
-    }
+        fun indexAt(p: Offset): Int {
+            if (p.x < 0 || p.y < 0) return -1
+            val c = (p.x / cellWpx).toInt()
+            val r = (p.y / cellHpx).toInt()
+            return if (c < columns && r < rows) r * columns + c else -1
+        }
+        fun slotOffset(i: Int) = IntOffset(((i % columns) * cellWpx).roundToInt(), ((i / columns) * cellHpx).roundToInt())
+        fun slotCenter(i: Int) = Offset((i % columns + 0.5f) * cellWpx, (i / columns + 0.5f) * cellHpx)
 
-    LazyVerticalGrid(
-        state = gridState,
-        columns = GridCells.Fixed(columns),
-        contentPadding = PaddingValues(bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier.pointerInput(Unit) {
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                val key = itemAt(down.position)?.key as? String ?: return@awaitEachGesture
-
-                // Phase 1: tap, scroll, or long-press?
-                val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                    var result = 0
-                    while (result == 0) {
-                        val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
-                        result = when {
-                            c == null -> CANCEL
-                            c.changedToUpIgnoreConsumed() -> if (c.isConsumed) CANCEL else TAP
-                            c.isConsumed -> CANCEL // the grid started scrolling
-                            (c.position - down.position).getDistance() > viewConfiguration.touchSlop -> CANCEL
-                            else -> 0
-                        }
-                    }
-                    result
-                }
-                when (outcome) {
-                    TAP -> { byKey[key]?.let { vm.launch(it) }; return@awaitEachGesture }
-                    CANCEL -> return@awaitEachGesture
-                }
-
-                // Phase 2: long-pressed. Drag to move; no movement means "show the menu".
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                draggingKey = key
-                dragOffset = Offset.Zero
-                var moved = 0f
-                while (true) {
-                    // Initial pass + consume, so the grid doesn't scroll and the panel doesn't open.
-                    val c = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
-                    if (!c.pressed) { c.consume(); break }
-                    val d = c.positionChange()
-                    c.consume()
-                    if (d == Offset.Zero) continue
-                    moved += d.getDistance()
-                    dragOffset += d
-
-                    val info = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: continue
-                    if (info.index != order.indexOf(key)) continue // wait for the last move to be laid out
-                    val center = Offset(
-                        info.offset.x + dragOffset.x + info.size.width / 2f,
-                        info.offset.y + dragOffset.y + info.size.height / 2f,
-                    )
-                    val target = itemAt(center) ?: continue
-                    if (target.key == key) continue
-                    val from = order.indexOf(key)
-                    val to = order.indexOf(target.key as? String ?: continue)
-                    if (from < 0 || to < 0) continue
-                    order = order.toMutableList().apply { add(to, removeAt(from)) }
-                    // The item's slot moves to the target's position; keep it under the finger.
-                    dragOffset += Offset(
-                        (info.offset.x - target.offset.x).toFloat(),
-                        (info.offset.y - target.offset.y).toFloat(),
-                    )
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-                if (moved < viewConfiguration.touchSlop) {
-                    menuKey = key
-                } else {
-                    // Keep any saved keys we aren't showing (e.g. an app that's temporarily unavailable).
-                    vm.prefs.favorites = order + vm.prefs.favorites.filter { it !in order }
-                }
-                draggingKey = null
-                dragOffset = Offset.Zero
-            }
-        },
-    ) {
-        items(order, key = { it }) { key ->
-            val app = byKey[key] ?: return@items
-            val dragging = key == draggingKey
+        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState(), enabled = rows > rowsFit && draggingKey == null)) {
             Box(
-                if (dragging) {
-                    Modifier.zIndex(1f).graphicsLayer {
-                        translationX = dragOffset.x
-                        translationY = dragOffset.y
-                        scaleX = 1.12f
-                        scaleY = 1.12f
-                    }
-                } else Modifier.animateItem(),
-                contentAlignment = Alignment.Center,
+                Modifier
+                    .fillMaxWidth()
+                    .height(cellH * rows)
+                    .pointerInput(columns, rows, cellWpx, cellHpx) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val from = indexAt(down.position)
+                            val key = slots.getOrNull(from)?.takeIf { byKey.containsKey(it) } ?: return@awaitEachGesture
+
+                            // Phase 1: tap, scroll, or long-press?
+                            val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                var result = 0
+                                while (result == 0) {
+                                    val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+                                    result = when {
+                                        c == null -> CANCEL
+                                        c.changedToUpIgnoreConsumed() -> if (c.isConsumed) CANCEL else TAP
+                                        c.isConsumed -> CANCEL
+                                        (c.position - down.position).getDistance() > viewConfiguration.touchSlop -> CANCEL
+                                        else -> 0
+                                    }
+                                }
+                                result
+                            }
+                            when (outcome) {
+                                TAP -> { byKey[key]?.let { vm.launch(it) }; return@awaitEachGesture }
+                                CANCEL -> return@awaitEachGesture
+                            }
+
+                            // Phase 2: long-pressed — drag it around.
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            draggingKey = key
+                            dragOffset = Offset.Zero
+                            hoverIndex = from
+                            var moved = 0f
+                            while (true) {
+                                val c = awaitPointerEvent(PointerEventPass.Initial).changes
+                                    .firstOrNull { it.id == down.id } ?: break
+                                if (!c.pressed) { c.consume(); break }
+                                val d = c.positionChange()
+                                c.consume()
+                                if (d == Offset.Zero) continue
+                                moved += d.getDistance()
+                                dragOffset += d
+                                val over = indexAt(slotCenter(from) + dragOffset)
+                                if (over != hoverIndex) {
+                                    hoverIndex = over
+                                    if (over >= 0) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                            }
+
+                            if (moved < viewConfiguration.touchSlop) {
+                                menuKey = key
+                                draggingKey = null
+                                hoverIndex = -1
+                                return@awaitEachGesture
+                            }
+
+                            val target = hoverIndex
+                            var finalIndex = from
+                            if (target >= 0 && target != from) {
+                                val list = slots.toMutableList()
+                                while (list.size <= max(target, from)) list += EMPTY_SLOT
+                                val other = list[target]
+                                list[target] = key
+                                list[from] = if (byKey.containsKey(other)) other else EMPTY_SLOT
+                                while (list.isNotEmpty() && list.last() == EMPTY_SLOT) list.removeAt(list.lastIndex)
+                                slots = list
+                                vm.prefs.favorites = list
+                                finalIndex = target
+                            }
+                            // Glide from where it was dropped into its cell.
+                            val remaining = (slotOffset(from) - slotOffset(finalIndex)).let {
+                                Offset(it.x.toFloat(), it.y.toFloat())
+                            } + dragOffset
+                            dragOffset = remaining
+                            hoverIndex = -1
+                            scope.launch {
+                                settle.snapTo(remaining)
+                                settleKey = key
+                                draggingKey = null
+                                dragOffset = Offset.Zero
+                                settle.animateTo(Offset.Zero, spring(dampingRatio = 0.8f, stiffness = 600f))
+                                settleKey = null
+                            }
+                        }
+                    },
             ) {
-                AppVisual(app, iconSize, vm.prefs.iconRoundness, vm.prefs.showLabels)
-                DropdownMenu(expanded = menuKey == key, onDismissRequest = { menuKey = null }) {
-                    homeMenu(vm, app, inDock = false).forEach { a ->
-                        DropdownMenuItem(text = { Text(a.label) }, onClick = { menuKey = null; a.run() })
+                // Where the app will land.
+                if (draggingKey != null && hoverIndex >= 0) {
+                    Box(
+                        Modifier
+                            .offset { slotOffset(hoverIndex) }
+                            .size(cellW, cellH)
+                            .padding(4.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(WallpaperText.color.copy(alpha = 0.14f)),
+                    )
+                }
+                slots.forEachIndexed { index, k ->
+                    val app = byKey[k]
+                    if (app != null) key(k) {
+                        val animated by animateIntOffsetAsState(slotOffset(index), label = "slot")
+                        val dragging = k == draggingKey
+                        val settling = k == settleKey
+                        Box(
+                            Modifier
+                                .offset {
+                                    when {
+                                        dragging -> slotOffset(index) + dragOffset.round()
+                                        settling -> slotOffset(index) + settle.value.round()
+                                        else -> animated
+                                    }
+                                }
+                                .zIndex(if (dragging || settling) 1f else 0f)
+                                .size(cellW, cellH)
+                                .graphicsLayer {
+                                    val s = if (dragging) 1.12f else 1f
+                                    scaleX = s
+                                    scaleY = s
+                                },
+                            contentAlignment = Alignment.TopCenter,
+                        ) {
+                            AppVisual(app, iconSize, vm.prefs.iconRoundness, showLabels)
+                            DropdownMenu(expanded = menuKey == k, onDismissRequest = { menuKey = null }) {
+                                homeMenu(vm, app, inDock = false).forEach { a ->
+                                    DropdownMenuItem(text = { Text(a.label) }, onClick = { menuKey = null; a.run() })
+                                }
+                            }
+                        }
                     }
                 }
             }
