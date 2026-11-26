@@ -19,6 +19,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.Composable
@@ -71,13 +74,23 @@ fun Tile(
     }
 }
 
+/** Receives each icon's on-screen bounds, so launches can grow out of the icon. */
+val LocalIconBounds = staticCompositionLocalOf<(String, android.graphics.Rect) -> Unit> { { _, _ -> } }
+
 @Composable
 fun AppIcon(app: AppEntry, size: Dp, roundness: Int, modifier: Modifier = Modifier) {
+    val record = LocalIconBounds.current
     Image(
         bitmap = app.icon,
         contentDescription = app.label,
         contentScale = ContentScale.Crop,
-        modifier = modifier.size(size).clip(RoundedCornerShape(roundness.coerceIn(0, 50))),
+        modifier = modifier
+            .size(size)
+            .onGloballyPositioned { c ->
+                val r = c.boundsInWindow()
+                record(app.key, android.graphics.Rect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt()))
+            }
+            .clip(RoundedCornerShape(roundness.coerceIn(0, 50))),
     )
 }
 

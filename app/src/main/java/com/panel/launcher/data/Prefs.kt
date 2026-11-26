@@ -65,6 +65,10 @@ class Prefs(context: Context) {
     var foldersJson by string("folders", "{}")
     var showRecents by bool("show_recents", true)
     var hideStatusBar by bool("hide_status_bar", false)
+    var lockPortrait by bool("lock_portrait", true)
+    var swipeDownShade by bool("swipe_down_shade", true)
+    var swipeUpPanel by bool("swipe_up_panel", true)
+    var openAnimation by bool("open_animation", true)
     var boxNumberScale by int("box_number_scale", 100)   // percent
     var boxNumberWeight by int("box_number_weight", 500) // 300 light … 900 black
     var boxNumberFont by string("box_number_font", "default")

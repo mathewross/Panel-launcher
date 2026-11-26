@@ -58,8 +58,8 @@ class AppRepository(private val context: Context) {
         }.sortedBy { it.label.lowercase() }
     }
 
-    fun launch(app: AppEntry) {
-        runCatching { launcherApps.startMainActivity(app.component, app.user, null, null) }
+    fun launch(app: AppEntry, sourceBounds: android.graphics.Rect? = null, options: android.os.Bundle? = null) {
+        runCatching { launcherApps.startMainActivity(app.component, app.user, sourceBounds, options) }
     }
 
     fun openAppInfo(app: AppEntry) {

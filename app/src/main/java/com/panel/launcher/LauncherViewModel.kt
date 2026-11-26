@@ -155,6 +155,8 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onResume() {
+        resumed = true
+        resumeTick++
         now = System.currentTimeMillis()
         media.refreshMode()
         hasNotificationAccess = media.hasNotificationAccess()
@@ -480,11 +482,40 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Actions ----------
 
+    // ---------- Launch animation & home-screen motion ----------
+
+    /** Supplies the window's root view (set by MainActivity) for "grow out of the icon" launches. */
+    var hostView: (() -> android.view.View?)? = null
+    /** Where each app icon currently sits on screen, recorded as the icons are laid out. */
+    val iconBounds = HashMap<String, android.graphics.Rect>()
+    /** Bumped on every app launch / every return to home, to drive the zoom animations. */
+    var launchTick by mutableStateOf(0); private set
+    var resumeTick by mutableStateOf(0); private set
+    var resumed = false; private set
+
+    fun onPause() { resumed = false }
+
     fun launch(app: AppEntry) {
-        repo.launch(app)
+        val bounds = iconBounds[app.key]
+        val view = hostView?.invoke()
+        val options = if (prefs.openAnimation && bounds != null && view != null) {
+            // The app grows out of its icon.
+            android.app.ActivityOptions.makeScaleUpAnimation(
+                view, bounds.left, bounds.top, bounds.width(), bounds.height(),
+            ).toBundle()
+        } else null
+        repo.launch(app, bounds, options)
+        launchTick++
         // Remember for the "Recent" row (only launches through Panel; no usage-access permission).
         prefs.recentApps = (listOf(app.key) + prefs.recentApps.filter { it != app.key }).take(12)
     }
+
+    /** Pulls down the notification shade, like swiping down on the Pixel launcher. */
+    @android.annotation.SuppressLint("WrongConstant")
+    fun expandNotifications(): Boolean = runCatching {
+        val sbm = ctx.getSystemService("statusbar")
+        Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(sbm)
+    }.isSuccess
 
     fun recentApps(n: Int): List<AppEntry> = prefs.recentApps.mapNotNull { appsByKey[it] }.take(n)
 

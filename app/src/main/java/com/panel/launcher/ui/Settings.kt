@@ -159,11 +159,20 @@ private fun SettingsBody(
         SwitchRow("Show Up next box", p.showUpNext) { p.showUpNext = it }
         Divider()
         SwitchRow("Hide status bar on home screen", p.hideStatusBar) { p.hideStatusBar = it }
+
         Text(
             "Android can't hide just the clock, so this hides the whole bar (battery and signal too) " +
                 "while you're on the home screen. Swipe down from the top to peek at it.",
             color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
         )
+        Divider()
+        SwitchRow("Always portrait", p.lockPortrait) { p.lockPortrait = it }
+        Divider()
+        SwitchRow("Swipe down for notifications", p.swipeDownShade) { p.swipeDownShade = it }
+        Divider()
+        SwitchRow("Swipe up for app panel", p.swipeUpPanel) { p.swipeUpPanel = it }
+        Divider()
+        SwitchRow("Open animations", p.openAnimation) { p.openAnimation = it }
         Divider()
         ChoiceRow("App panel slides from", listOf("Left" to true, "Right" to false), p.sidebarOnLeft) { p.sidebarOnLeft = it }
         Divider()

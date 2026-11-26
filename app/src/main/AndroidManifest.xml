@@ -12,7 +12,8 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />       <!-- up next / agenda -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" /> <!-- optional: local weather -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" /> <!-- "Uninstall" menu item -->
-    <uses-permission android:name="android.permission.SET_WALLPAPER" />       <!-- optional "use as phone wallpaper" -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />    <!-- swipe down for the shade -->       <!-- optional "use as phone wallpaper" -->
 
     <queries>
         <intent>

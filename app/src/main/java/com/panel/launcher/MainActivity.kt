@@ -1,6 +1,7 @@
 package com.panel.launcher
 
 import android.graphics.Color
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -23,11 +24,23 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        if (vm.prefs.lockPortrait) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        vm.hostView = { window?.decorView }
         setContent {
             PanelTheme {
                 HomeScreen(vm, homePresses.intValue)
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        vm.onPause()
+    }
+
+    override fun onDestroy() {
+        vm.hostView = null
+        super.onDestroy()
     }
 
     override fun onResume() {

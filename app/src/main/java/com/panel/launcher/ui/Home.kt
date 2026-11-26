@@ -2,6 +2,8 @@ package com.panel.launcher.ui
 
 import android.Manifest
 import android.app.Activity
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import android.content.Intent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -141,6 +143,54 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     )
     val panelOpen by remember { derivedStateOf { panel.targetValue > 0f } }
 
+    // ---- Vertical swipes on the home screen: down = notification shade, up = app panel. ----
+    var verticalTotal by remember { mutableStateOf(0f) }
+    val verticalDrag = rememberDraggableState { verticalTotal += it }
+    val swipeThreshold = with(density) { 48.dp.toPx() }
+    val verticalDragModifier = Modifier.draggable(
+        verticalDrag, Orientation.Vertical,
+        enabled = !settings && !panelOpen && openFolder == null,
+        onDragStarted = { verticalTotal = 0f },
+        onDragStopped = { velocity ->
+            when {
+                verticalTotal > swipeThreshold || velocity > 1200f ->
+                    if (vm.prefs.swipeDownShade) vm.expandNotifications()
+                verticalTotal < -swipeThreshold || velocity < -1200f ->
+                    if (vm.prefs.swipeUpPanel) openPanel(false)
+            }
+        },
+    )
+
+    // ---- Home zooms away as an app opens, and settles back in when you return. ----
+    val homeScale = remember { Animatable(1f) }
+    val homeAlpha = remember { Animatable(1f) }
+    LaunchedEffect(vm.launchTick) {
+        if (vm.launchTick == 0 || !vm.prefs.openAnimation) return@LaunchedEffect
+        launch { homeScale.animateTo(1.08f, tween(320)) }
+        homeAlpha.animateTo(0f, tween(260))
+        // If the app didn't take over the screen (e.g. it failed to open), come back.
+        kotlinx.coroutines.delay(900)
+        if (vm.resumed) {
+            launch { homeAlpha.animateTo(1f, tween(200)) }
+            homeScale.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 300f))
+        }
+    }
+    LaunchedEffect(vm.resumeTick) {
+        if (homeAlpha.value < 1f) {
+            homeScale.snapTo(0.92f)
+            launch { homeAlpha.animateTo(1f, tween(240)) }
+            homeScale.animateTo(1f, spring(dampingRatio = 0.75f, stiffness = 260f))
+        }
+    }
+
+    // Keep the home screen upright even with auto-rotate on (Settings › Always portrait).
+    val lockPortrait = vm.prefs.lockPortrait
+    SideEffect {
+        (ctx as? Activity)?.requestedOrientation =
+            if (lockPortrait) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+
     // Pressing Home while already home closes whatever is open.
     LaunchedEffect(homePresses) {
         if (homePresses > 0) { panel.snapTo(0f); focusSearch = false; settings = false; agenda = false; openFolder = null }
@@ -206,16 +256,31 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     CompositionLocalProvider(
         LocalTiles provides paletteFor(vm.prefs.tileStyle, light),
         LocalWallpaperText provides if (light) TextOnLightWallpaper else TextOnDarkWallpaper,
+        LocalIconBounds provides { key, rect -> vm.iconBounds[key] = rect },
     ) {
-        Box(Modifier.fillMaxSize().then(panelDragModifier)) {
+        Box(Modifier.fillMaxSize().then(panelDragModifier).then(verticalDragModifier)) {
             val dockPos = vm.prefs.dockPosition
             val bigClock = vm.prefs.headerStyle == HeaderStyle.CLOCK
             var clockHeight by remember { mutableIntStateOf(0) }
 
             // Layer 1: Panel's own wallpaper photo, if one is chosen (otherwise the system wallpaper shows through).
             vm.wallpaper?.let {
-                Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                Image(
+                    it, null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        // The wallpaper moves a little with the home zoom, for depth.
+                        val s = 1f + (homeScale.value - 1f) * 0.35f
+                        scaleX = s; scaleY = s
+                    },
+                )
             }
+            Box(
+                Modifier.fillMaxSize().graphicsLayer {
+                    scaleX = homeScale.value
+                    scaleY = homeScale.value
+                    alpha = homeAlpha.value
+                },
+            ) {
             // Layer 2: the big clock.
             if (bigClock) {
                 BigClock(
@@ -279,6 +344,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     onSettings = { settings = true },
                 )
             }
+            } // end of zooming home layer
 
             FolderOverlay(vm, openFolder) { openFolder = null }
 
