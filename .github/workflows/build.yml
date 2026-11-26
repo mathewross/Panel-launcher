@@ -7,6 +7,11 @@ on:
 permissions:
   contents: write
 
+# One build at a time, so the signing key cached by the first build is reused by later ones.
+concurrency:
+  group: build-apk
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
