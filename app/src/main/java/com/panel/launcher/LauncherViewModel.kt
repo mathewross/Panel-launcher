@@ -88,6 +88,34 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     private val wallpaperColorsListener =
         android.app.WallpaperManager.OnColorsChangedListener { _, _ -> detectWallpaperTone() }
 
+    // ---------- Music ----------
+    var nowPlaying by mutableStateOf<com.panel.launcher.data.NowPlaying?>(null); private set
+    private var lastPlayingAt by mutableLongStateOf(0L)
+    /** Which view the Up next box shows while music is available. */
+    var showMusicTab by mutableStateOf(false)
+    var hasNotificationAccess by mutableStateOf(false); private set
+
+    /** Music controls are offered while something plays, and for 10 minutes after it pauses. */
+    val musicAvailable: Boolean
+        get() {
+            val np = nowPlaying ?: return false
+            return prefs.showMusic && (np.playing || now - lastPlayingAt < 10 * 60_000)
+        }
+
+    val media = com.panel.launcher.data.MediaRepository(app, viewModelScope) { np ->
+        val wasPlaying = nowPlaying?.playing == true
+        nowPlaying = np
+        if (np?.playing == true) {
+            lastPlayingAt = System.currentTimeMillis()
+            if (!wasPlaying) showMusicTab = true // pop open when playback starts, like Niagara
+        }
+    }
+
+    fun openMusicApp() {
+        val pkg = nowPlaying?.packageName ?: return
+        apps.firstOrNull { it.packageName == pkg }?.let { launch(it) }
+    }
+
     private val appsCallback: LauncherApps.Callback
     private var calendarJob: Job? = null
     private val calendarObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -109,6 +137,8 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         }
         refreshApps()
         appsCallback = repo.watch { refreshApps() }
+        media.start()
+        hasNotificationAccess = media.hasNotificationAccess()
         viewModelScope.launch {
             var ticks = 0
             while (true) {
@@ -123,6 +153,8 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onResume() {
         now = System.currentTimeMillis()
+        media.refreshMode()
+        hasNotificationAccess = media.hasNotificationAccess()
         detectWallpaperTone()
         refreshAlarm()
         refreshCalendar()
@@ -384,6 +416,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     fun toast(msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
 
     override fun onCleared() {
+        media.stop()
         runCatching { android.app.WallpaperManager.getInstance(ctx).removeOnColorsChangedListener(wallpaperColorsListener) }
         repo.unwatch(appsCallback)
         if (observingCalendar) ctx.contentResolver.unregisterContentObserver(calendarObserver)

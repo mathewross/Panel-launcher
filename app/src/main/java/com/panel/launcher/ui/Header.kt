@@ -88,7 +88,7 @@ private fun BoxesHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modif
                 )
             }
         }
-        if (vm.prefs.showUpNext) UpNextBox(vm, a)
+        if (vm.prefs.showUpNext || vm.musicAvailable) UpNextBox(vm, a)
     }
 }
 
@@ -125,16 +125,32 @@ private fun FolioBox(
 @Composable
 private fun UpNextBox(vm: LauncherViewModel, a: HeaderActions) {
     val p = LocalTiles.current
-    Tile(Modifier.fillMaxWidth(), onClick = if (vm.hasCalendar) a.agenda else a.connectCalendar) {
+    val music = vm.nowPlaying?.takeIf { vm.musicAvailable }
+    // With Up next turned off, the box only appears for music, so there's nothing to toggle.
+    val showMusic = music != null && (vm.showMusicTab || !vm.prefs.showUpNext)
+    Tile(
+        Modifier.fillMaxWidth(),
+        onClick = when {
+            showMusic -> vm::openMusicApp
+            vm.hasCalendar -> a.agenda
+            else -> a.connectCalendar
+        },
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionLabel("Up next", p.subtle, Modifier.weight(1f))
-                if (vm.hasCalendar) {
+                if (music != null && vm.prefs.showUpNext) {
+                    UpNextMusicToggle(vm)
+                    Spacer(Modifier.weight(1f))
+                } else {
+                    SectionLabel(if (showMusic) "Now playing" else "Up next", p.subtle, Modifier.weight(1f))
+                }
+                if (!showMusic && vm.hasCalendar) {
                     Text("Agenda ›", color = p.subtle, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
                 }
             }
             val list = upNext(vm.upNextEvents, 2)
             when {
+                showMusic && music != null -> MusicPlayer(vm, music)
                 !vm.hasCalendar -> Text("Tap to show your calendar events here", color = p.fg, fontSize = 14.sp)
                 list.isEmpty() -> Text("Nothing coming up", color = p.subtle, fontSize = 14.sp)
                 else -> list.forEach { e -> EventLine(e, vm.now, p.fg, p.subtle) { a.event(e) } }
@@ -195,6 +211,7 @@ private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modi
             Text("⏰ " + Fmt.shortTime(ctx, it), style = sub, fontSize = 15.sp,
                 modifier = Modifier.padding(top = 2.dp).clickable(onClick = a.clock))
         }
+        CompactMusic(vm, sub, Modifier.padding(top = 8.dp))
         Spacer(Modifier.height(14.dp))
         if (!vm.hasCalendar) {
             Text("📅  Tap to show upcoming events", style = sub, fontSize = 15.sp,

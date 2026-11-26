@@ -260,6 +260,48 @@ private fun SettingsBody(
         }
     }
 
+    Group("Music") {
+        SwitchRow("Show music controls", p.showMusic) { p.showMusic = it }
+        Divider()
+        Text(
+            "Spotify (no extra permissions): in Spotify, open Settings and turn on " +
+                "\"Device broadcast status\". Panel can then show the song and art, with " +
+                "play/pause, next and previous.",
+            color = Subtle, fontSize = 13.sp, modifier = Modifier.padding(16.dp),
+        )
+        if (vm.apps.any { it.packageName == com.panel.launcher.data.MediaRepository.SPOTIFY_PACKAGE }) {
+            Divider()
+            ActionRow("Open Spotify", "To turn on Device broadcast status", Blue) {
+                vm.apps.firstOrNull { it.packageName == com.panel.launcher.data.MediaRepository.SPOTIFY_PACKAGE }
+                    ?.let { vm.launch(it) }
+            }
+        }
+        Divider()
+        ActionRow(
+            if (vm.hasNotificationAccess) "Full controls: on" else "Full controls for any music app",
+            if (vm.hasNotificationAccess) "Using notification access. Tap to turn it off."
+            else "Adds shuffle/like buttons and works with any app, but needs notification access, " +
+                "which some banking apps dislike. Optional.",
+            if (vm.hasNotificationAccess) null else Blue,
+        ) {
+            val component = android.content.ComponentName(ctx, com.panel.launcher.MediaListener::class.java)
+            val detail = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                    .putExtra(SystemSettings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+            } else null
+            if (detail == null || !vm.start(ctx, detail)) {
+                vm.start(ctx, Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+        }
+        if (!vm.hasNotificationAccess) {
+            Text(
+                "If Android says \"Restricted setting\" (it does for apps not from the Play Store): " +
+                    "open Android app settings below, tap ⋮ › Allow restricted settings, then try again.",
+                color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            )
+        }
+    }
+
     Group("Weather") {
         ChoiceRow("Units", listOf("°C" to false, "°F" to true), p.fahrenheit) { p.fahrenheit = it }
         Divider()
@@ -298,9 +340,11 @@ private fun SettingsBody(
 
     Group("Privacy") {
         Text(
-            "Panel doesn't use an accessibility service, screen overlays or notification access, so banking " +
-                "apps that block those keep working. It only asks for calendar (Up next), approximate " +
-                "location (weather — or type a city instead) and internet (weather from open-meteo.com).",
+            "Panel doesn't use an accessibility service or screen overlays, so banking apps that block " +
+                "those keep working. It asks for calendar (Up next), approximate location (weather — or " +
+                "type a city instead) and internet (weather, album art). Notification access is only " +
+                "used if you turn on full music controls, and is off by default." +
+                if (vm.hasNotificationAccess) " It is currently ON." else "",
             color = Subtle, fontSize = 13.sp, modifier = Modifier.padding(16.dp),
         )
     }

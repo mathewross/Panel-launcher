@@ -31,7 +31,7 @@ It does **not** use any of the things banking apps block:
 |---|---|
 | Accessibility service | ✗ |
 | Draw over other apps (overlays) | ✗ |
-| Notification access / listener | ✗ |
+| Notification access / listener | ✗ (only if you opt in to full music controls) |
 | Query all packages | ✗ |
 
 The only permissions are:
@@ -108,6 +108,21 @@ Panel draws the photo, then the clock, then the cut-out subject. That's why the 
 photo chosen inside Panel. It can't read the system wallpaper without broad storage access.
 *Also use as phone wallpaper* puts the same photo on your lock screen, but the lock screen
 clock itself belongs to Android and can't be changed by an app.
+
+### Music (Spotify and others)
+
+While music is playing, the Up next box gets an **Up next | ♫ Playing** toggle and switches to
+the player by itself: album art, title, artist, previous / play-pause / next. The toggle
+disappears about 10 minutes after the music stops. Glance and Big clock show a one-line player.
+
+- **Spotify, no permissions** (default): in Spotify › Settings, turn on **Device broadcast
+  status**. Album art comes from Spotify's public web link. Shuffle can't be controlled in this
+  mode.
+- **Full controls, any app** (optional): Settings › Music › *Full controls* asks for
+  notification access. You get the app's own extra buttons (Spotify's shuffle, like and so on)
+  and it works with YouTube Music, podcasts, etc. Panel never reads your notifications. Android
+  may call this a "Restricted setting" for apps not from the Play Store: App info › ⋮ ›
+  *Allow restricted settings*. If your bank objects, turn it off again.
 
 ## Signing key for updates
 

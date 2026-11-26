@@ -118,5 +118,6 @@ fun BigClock(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier = Modif
                     .clickable(onClick = if (vm.hasCalendar) a.agenda else a.connectCalendar).padding(4.dp),
             )
         }
+        CompactMusic(vm, info, Modifier.padding(horizontal = 24.dp))
     }
 }
