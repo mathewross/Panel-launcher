@@ -64,6 +64,10 @@ class Prefs(context: Context) {
     var showMusic by bool("show_music", true)
     var foldersJson by string("folders", "{}")
     var showRecents by bool("show_recents", true)
+    var hideStatusBar by bool("hide_status_bar", false)
+    var boxNumberScale by int("box_number_scale", 100)   // percent
+    var boxNumberWeight by int("box_number_weight", 500) // 300 light … 900 black
+    var boxNumberFont by string("box_number_font", "default")
     var recentApps: List<String> by list("recent_apps") // most recent first, launched via Panel
     var wallpaperTone by string("wallpaper_tone", "auto") // auto | light | dark
     var iconScale by int("icon_scale", 100) // percent

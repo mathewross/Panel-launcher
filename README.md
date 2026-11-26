@@ -85,6 +85,9 @@ of app panel*). It counts launches made through Panel, so no usage-access permis
 - **Box style**: Glass, Light or Dark. Glass, labels and status-bar icons switch to dark
   text automatically on a light wallpaper (*Text on wallpaper*: Auto / Dark / White to
   override).
+- **Time & date box numbers**: size, weight (Light to Black) and font. Big sizes shrink to fit.
+- **Hide status bar on home screen**: Android can't hide just the clock, so this hides the
+  whole bar on Panel's home screen only. Swipe down from the top to peek.
 - **Dock**: right (Folio), left, or bottom. With the dock at the bottom, weather becomes a
   third box.
 - **Grid**: 3 to 7 columns, icon size 70–130%. Rows scroll, so there are as many as you need.

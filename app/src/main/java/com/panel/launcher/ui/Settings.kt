@@ -158,11 +158,36 @@ private fun SettingsBody(
         Divider()
         SwitchRow("Show Up next box", p.showUpNext) { p.showUpNext = it }
         Divider()
+        SwitchRow("Hide status bar on home screen", p.hideStatusBar) { p.hideStatusBar = it }
+        Text(
+            "Android can't hide just the clock, so this hides the whole bar (battery and signal too) " +
+                "while you're on the home screen. Swipe down from the top to peek at it.",
+            color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+        )
+        Divider()
         ChoiceRow("App panel slides from", listOf("Left" to true, "Right" to false), p.sidebarOnLeft) { p.sidebarOnLeft = it }
         Divider()
         SwitchRow("Recent apps at top of app panel", p.showRecents) { p.showRecents = it }
         Divider()
         SwitchRow("Show next alarm", p.showAlarm) { p.showAlarm = it; vm.onResume() }
+    }
+
+    Group("Time & date box numbers") {
+        SliderRow("Size", p.boxNumberScale, 70..150, "${p.boxNumberScale}%") { p.boxNumberScale = it }
+        Divider()
+        ChoiceRow(
+            "Weight",
+            listOf("Light" to 300, "Regular" to 400, "Medium" to 500, "Bold" to 700, "Black" to 900),
+            p.boxNumberWeight,
+        ) { p.boxNumberWeight = it }
+        Divider()
+        ChoiceRow("Font", listOf("Default" to "default") + ClockFonts.filter { it.first != "bold" }.map { it.second to it.first }, p.boxNumberFont) {
+            p.boxNumberFont = it
+        }
+        Text(
+            "Very large sizes shrink automatically so the time always fits its box.",
+            color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+        )
     }
 
     Group("Big clock & wallpaper") {

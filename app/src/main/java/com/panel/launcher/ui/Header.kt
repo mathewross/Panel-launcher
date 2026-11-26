@@ -26,6 +26,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,15 +68,23 @@ private fun BoxesHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modif
     val is24 = DateFormat.is24HourFormat(ctx)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // The date box already names the day, so the time box only adds AM/PM and the next alarm.
             val clockSub = listOfNotNull(
                 if (is24) null else Fmt.pattern(now, "a"),
-                Fmt.pattern(now, "EEE"),
                 vm.nextAlarm?.let { "⏰ " + Fmt.time(ctx, it) },
             ).joinToString(" · ")
-            FolioBox("Local time", Fmt.time(ctx, now), clockSub, a.clock, null, Modifier.weight(1f))
+            val time = Fmt.time(ctx, now)
+            val (family, _) = clockFamily(vm.prefs.boxNumberFont)
+            val numberStyle = TextStyle(
+                fontFamily = family,
+                fontWeight = FontWeight(vm.prefs.boxNumberWeight.coerceIn(100, 900)),
+                letterSpacing = (-1).sp,
+            )
+            val scale = vm.prefs.boxNumberScale / 100f
+            FolioBox("Local time", time, clockSub, a.clock, null, Modifier.weight(1f), numberStyle, scale, fitTo = time)
             FolioBox(
                 Fmt.pattern(now, "EEEE"), Fmt.pattern(now, "d"), Fmt.pattern(now, "MMMM"),
-                a.calendar, null, Modifier.weight(1f),
+                a.calendar, null, Modifier.weight(1f), numberStyle, scale, fitTo = time,
             )
             if (vm.prefs.dockPosition == DockPosition.BOTTOM) {
                 // No side rail in this layout, so weather gets a box of its own.
@@ -101,19 +111,30 @@ private fun FolioBox(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier,
+    numberStyle: TextStyle = TextStyle(fontWeight = FontWeight.Medium, letterSpacing = (-1).sp),
+    scale: Float = 1f,
+    fitTo: String = value,
 ) {
     val p = LocalTiles.current
+    val measurer = rememberTextMeasurer()
     Tile(modifier.aspectRatio(1f), onClick = onClick, onLongClick = onLongClick, padding = 16.dp) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val big = (maxWidth.value * 0.33f).coerceIn(24f, 60f).sp
+            // Chosen size, shrunk if needed so [fitTo] (the time, for both boxes) fits the width.
+            var size = (maxWidth.value * 0.33f * scale).coerceIn(18f, 110f)
+            while (size > 18f) {
+                val w = measurer.measure(fitTo, numberStyle.copy(fontSize = size.sp), maxLines = 1, softWrap = false).size.width
+                if (w <= constraints.maxWidth) break
+                size -= 2f
+            }
+            val big = size.sp
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                 Text(
                     label.uppercase(), color = p.subtle, fontSize = 11.sp, letterSpacing = 0.8.sp,
                     fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    value, color = p.fg, fontSize = big, fontWeight = FontWeight.Medium,
-                    letterSpacing = (-1).sp, maxLines = 1, softWrap = false,
+                    value, style = numberStyle, color = p.fg, fontSize = big,
+                    maxLines = 1, softWrap = false, lineHeight = big,
                 )
                 Text(subtitle, color = p.subtle, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

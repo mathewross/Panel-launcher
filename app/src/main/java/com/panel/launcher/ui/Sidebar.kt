@@ -26,6 +26,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -128,7 +132,7 @@ fun BoxScope.Sidebar(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SidebarContent(
     vm: LauncherViewModel,
@@ -194,7 +198,7 @@ private fun SidebarContent(
             .widthIn(max = 420.dp)
             .clip(shape)
             .background(Color(0xF0141416))
-            .statusBarsPadding()
+            .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
             .navigationBarsPadding()
             .imePadding()
             .padding(start = 14.dp, end = 6.dp, top = 12.dp),

@@ -15,6 +15,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -84,6 +90,7 @@ import com.panel.launcher.data.AppEntry
 import com.panel.launcher.data.DockPosition
 import com.panel.launcher.data.WeatherRepository
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     val ctx = LocalContext.current
@@ -151,11 +158,17 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     val panelMostlyOpen by remember { derivedStateOf { panel.value > 0.5f } }
     val view = LocalView.current
     val darkBarIcons = light && !settings && !panelMostlyOpen
+    // Optional: hide the status bar on the home screen (the time box already shows the time).
+    // Android only allows hiding the whole bar; swipe down from the top edge to peek at it.
+    val hideBar = vm.prefs.hideStatusBar && !settings
     SideEffect {
         (ctx as? Activity)?.window?.let { w ->
             WindowCompat.getInsetsController(w, view).apply {
                 isAppearanceLightStatusBars = darkBarIcons
                 isAppearanceLightNavigationBars = darkBarIcons
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (hideBar) hide(WindowInsetsCompat.Type.statusBars())
+                else show(WindowInsetsCompat.Type.statusBars())
             }
         }
     }
@@ -208,7 +221,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     vm, actions,
                     Modifier
                         .fillMaxWidth()
-                        .statusBarsPadding()
+                        .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                         .padding(top = 14.dp)
                         .onSizeChanged { clockHeight = it.height },
                 )
@@ -222,7 +235,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
             Column(
                 Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
+                    .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp),
             ) {

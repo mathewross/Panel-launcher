@@ -36,7 +36,8 @@ val ClockFonts: List<Pair<String, String>> = listOf(
     "serif" to "Serif",
 )
 
-private fun clockFamily(key: String): Pair<FontFamily, FontWeight> = when (key) {
+internal fun clockFamily(key: String): Pair<FontFamily, FontWeight> = when (key) {
+    "default" -> FontFamily.Default to FontWeight.Medium
     "thin" -> FontFamily(Typeface.create("sans-serif-thin", Typeface.NORMAL)) to FontWeight.Thin
     "regular" -> FontFamily(Typeface.create("sans-serif-light", Typeface.NORMAL)) to FontWeight.Light
     "bold" -> FontFamily(Typeface.create("sans-serif-condensed", Typeface.BOLD)) to FontWeight.Bold
