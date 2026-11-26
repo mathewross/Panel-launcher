@@ -73,7 +73,7 @@ import com.panel.launcher.data.Folder
 fun FolderVisual(vm: LauncherViewModel, folder: Folder, iconSize: Dp, showLabel: Boolean) {
     val p = LocalTiles.current
     val apps = vm.folderApps(folder).take(4)
-    val shape = RoundedCornerShape(vm.prefs.iconRoundness.coerceIn(0, 50))
+    val shape = LocalIconLook.current.shape
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),

@@ -336,6 +336,10 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
         LocalWallpaperText provides if (light) TextOnLightWallpaper else TextOnDarkWallpaper,
         LocalIconBounds provides { key, rect -> vm.iconBounds[key] = rect },
         LocalGlass provides vm.glass,
+        LocalIconLook provides IconLook(
+            iconShapeFor(vm.prefs.iconShape, vm.prefs.iconRoundness),
+            pastelFilter(vm.prefs.iconPastel / 100f),
+        ),
         LocalContextMenu provides menuController,
     ) {
         Box(Modifier.fillMaxSize().then(panelDragModifier).then(verticalDragModifier)) {

@@ -44,13 +44,17 @@ class AppRepository(private val context: Context) {
     /**
      * [iconStyle]: "original", "themed" (Pixel-style monochrome icons) or "pack" (use [iconPack]).
      */
-    suspend fun load(iconStyle: String = "original", iconPack: String = ""): List<AppEntry> = withContext(Dispatchers.IO) {
+    suspend fun load(
+        iconStyle: String = "original",
+        iconPack: String = "",
+        softBackgrounds: Boolean = false,
+    ): List<AppEntry> = withContext(Dispatchers.IO) {
         val pack = if (iconStyle == "pack" && iconPack.isNotBlank()) IconPacks.load(context, iconPack) else null
         fun iconFor(info: android.content.pm.LauncherActivityInfo): android.graphics.Bitmap {
             val original = info.getIcon(0)
             pack?.drawableFor(info.componentName)?.let { return IconPacks.renderPackIcon(it, iconPx) }
             if (iconStyle == "themed") IconPacks.themed(context, original, iconPx)?.let { return it }
-            return renderIcon(original, iconPx)
+            return renderIcon(original, iconPx, softBackgrounds)
         }
         userManager.userProfiles.flatMap { user ->
             val serial = userManager.getSerialNumberForUser(user)
@@ -119,21 +123,50 @@ class AppRepository(private val context: Context) {
 
     companion object {
         /** Draws any icon as a full-bleed square; the UI clips it to the chosen rounded shape. */
-        fun renderIcon(d: Drawable, size: Int): Bitmap {
+        /**
+         * [softBackground]: replace the icon's background (or the white plate behind old-style
+         * icons) with a gentle tint of the icon's own colour, so icons sit together better.
+         */
+        fun renderIcon(d: Drawable, size: Int, softBackground: Boolean = false): Bitmap {
             val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bmp)
             if (d is AdaptiveIconDrawable) {
                 // Adaptive layers are 108dp with the visible area being the middle 72dp (2/3).
                 val pad = size / 4
-                d.background?.apply { setBounds(-pad, -pad, size + pad, size + pad); draw(canvas) }
+                val bg = d.background
+                if (softBackground && bg != null) canvas.drawColor(soften(averageColor(bg)))
+                else bg?.apply { setBounds(-pad, -pad, size + pad, size + pad); draw(canvas) }
                 d.foreground?.apply { setBounds(-pad, -pad, size + pad, size + pad); draw(canvas) }
             } else {
-                canvas.drawColor(Color.WHITE)
+                canvas.drawColor(if (softBackground) soften(averageColor(d)) else Color.WHITE)
                 val inset = size / 7
                 d.setBounds(inset, inset, size - inset, size - inset)
                 d.draw(canvas)
             }
             return bmp
+        }
+
+        /** Average colour of the opaque parts of a drawable. */
+        private fun averageColor(d: Drawable): Int {
+            val small = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+            d.setBounds(0, 0, 16, 16)
+            d.draw(Canvas(small))
+            var r = 0L; var g = 0L; var b = 0L; var n = 0L
+            for (y in 0 until 16) for (x in 0 until 16) {
+                val c = small.getPixel(x, y)
+                if (Color.alpha(c) < 128) continue
+                r += Color.red(c); g += Color.green(c); b += Color.blue(c); n++
+            }
+            return if (n == 0L) Color.WHITE else Color.rgb((r / n).toInt(), (g / n).toInt(), (b / n).toInt())
+        }
+
+        /** A soft pastel version of a colour: same hue, gentler saturation, light. */
+        private fun soften(c: Int): Int {
+            val hsv = FloatArray(3)
+            Color.colorToHSV(c, hsv)
+            hsv[1] = hsv[1] * 0.45f
+            hsv[2] = 0.93f
+            return Color.HSVToColor(hsv)
         }
     }
 }

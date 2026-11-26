@@ -112,6 +112,9 @@ of app panel*). It counts launches made through Panel, so no usage-access permis
   Android shares the system wallpaper with apps. Otherwise a translucent gradient is used.
 - **Long-press menus**: the app lifts, the rest of the screen blurs, and a rounded menu appears
   (Uninstall in red).
+- **Icon look, no pack needed**: *Pastel* slider (softens every icon's colours, live),
+  one consistent *Shape* (Rounded / Squircle / Circle), and *Soft backgrounds* (a gentle tint
+  of each icon's own colour instead of stark white plates).
 - **Icons**: Original, Pixel-style *Themed* (Material You colours, Android 13+), or any
   Nova/ADW-format **icon pack** from the Play Store.
 - **Motion**: icons squish when pressed, apps open out of their icon, the home screen pushes

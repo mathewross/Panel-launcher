@@ -201,7 +201,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshApps() {
         viewModelScope.launch {
-            val list = repo.load(prefs.iconStyle, prefs.iconPack)
+            val list = repo.load(prefs.iconStyle, prefs.iconPack, prefs.softIconBackgrounds)
             apps = list
             appsByKey = list.associateBy { it.key }
             if (!prefs.initialized && list.isNotEmpty()) {

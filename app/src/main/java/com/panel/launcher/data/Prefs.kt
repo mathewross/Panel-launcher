@@ -69,6 +69,9 @@ class Prefs(context: Context) {
     var pixelFont by bool("pixel_font", true)
     var iconStyle by string("icon_style", "original") // original | themed | pack
     var iconPack by string("icon_pack", "")
+    var iconPastel by int("icon_pastel", 0)            // 0 … 100
+    var iconShape by string("icon_shape", "rounded")   // rounded | squircle | circle
+    var softIconBackgrounds by bool("soft_icon_backgrounds", false)
     var swipeDownShade by bool("swipe_down_shade", true)
     var swipeUpPanel by bool("swipe_up_panel", true)
     var openAnimation by bool("open_animation", true)

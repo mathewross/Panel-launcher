@@ -82,17 +82,19 @@ val LocalIconBounds = staticCompositionLocalOf<(String, android.graphics.Rect) -
 @Composable
 fun AppIcon(app: AppEntry, size: Dp, roundness: Int, modifier: Modifier = Modifier) {
     val record = LocalIconBounds.current
+    val look = LocalIconLook.current
     Image(
         bitmap = app.icon,
         contentDescription = app.label,
         contentScale = ContentScale.Crop,
+        colorFilter = look.filter,
         modifier = modifier
             .size(size)
             .onGloballyPositioned { c ->
                 val r = c.boundsInWindow()
                 record(app.key, android.graphics.Rect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt()))
             }
-            .clip(RoundedCornerShape(roundness.coerceIn(0, 50))),
+            .clip(look.shape),
     )
 }
 

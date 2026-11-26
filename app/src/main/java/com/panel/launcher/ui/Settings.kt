@@ -215,6 +215,24 @@ private fun SettingsBody(
             listOf("Original" to "original", "Themed" to "themed", "Icon pack" to "pack"),
             p.iconStyle,
         ) { vm.setIconStyle(it) }
+        Divider()
+        SliderRow("Pastel", p.iconPastel, 0..100, if (p.iconPastel == 0) "Off" else "${p.iconPastel}%") { p.iconPastel = it }
+        Divider()
+        ChoiceRow(
+            "Shape",
+            listOf("Rounded" to "rounded", "Squircle" to "squircle", "Circle" to "circle"),
+            p.iconShape,
+        ) { p.iconShape = it }
+        Divider()
+        SwitchRow("Soft backgrounds", p.softIconBackgrounds) {
+            p.softIconBackgrounds = it
+            vm.refreshApps()
+        }
+        Text(
+            "Gives each icon's background (and the white plate behind older app icons) a gentle " +
+                "tint of its own colour, so mismatched icons sit together better.",
+            color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+        )
         if (p.iconStyle == "themed") {
             Text(
                 "Pixel-style themed icons in your wallpaper colours. Apps that don't provide one keep their normal icon.",
