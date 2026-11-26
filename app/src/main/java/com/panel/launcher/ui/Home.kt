@@ -2,6 +2,7 @@ package com.panel.launcher.ui
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.animation.core.Animatable
@@ -258,6 +259,10 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                             Spacer(Modifier.height(20.dp))
                             FavoritesGrid(
                                 vm, onOpenSidebar = { openPanel(false) }, onOpenFolder = { openFolder = it },
+                                onOpenSettings = { settings = true },
+                                onPickPanelWallpaper = {
+                                    wallpaperPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -336,29 +341,42 @@ private fun FavoritesGrid(
     vm: LauncherViewModel,
     onOpenSidebar: () -> Unit,
     onOpenFolder: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onPickPanelWallpaper: () -> Unit,
     modifier: Modifier,
 ) {
+    val ctx = LocalContext.current
     val favs = vm.prefs.favorites.filter { vm.occupied(it) }
-    if (favs.isEmpty()) {
-        Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            if (vm.apps.isNotEmpty()) {
-                Text(
-                    "Tap Search or ☰ below to see all your apps.\n" +
-                        "Long-press an app there to add it here or to the dock.",
-                    style = WallpaperText.copy(color = WallpaperText.color.copy(alpha = 0.85f)),
-                    fontSize = 14.sp, textAlign = TextAlign.Center,
-                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onOpenSidebar).padding(16.dp),
+    Box(modifier.fillMaxWidth()) {
+        val cols = vm.prefs.columns
+        FreeAppGrid(
+            vm = vm, columns = cols, onOpenFolder = onOpenFolder,
+            iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f),
+            emptySpaceMenu = {
+                listOf(
+                    MenuAction("Wallpaper & style") {
+                        // On a Pixel this opens Google's Wallpaper & style app.
+                        if (!vm.start(ctx, Intent(Intent.ACTION_SET_WALLPAPER))) {
+                            vm.start(ctx, Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS))
+                        }
+                    },
+                    MenuAction("Panel wallpaper photo") { onPickPanelWallpaper() },
+                    MenuAction("Home settings") { onOpenSettings() },
                 )
-            }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (favs.isEmpty() && vm.apps.isNotEmpty()) {
+            Text(
+                "Tap Search or ☰ below to see all your apps.\n" +
+                    "Long-press an app there to add it here or to the dock.",
+                style = WallpaperText.copy(color = WallpaperText.color.copy(alpha = 0.85f)),
+                fontSize = 14.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(16.dp))
+                    .clickable(onClick = onOpenSidebar).padding(16.dp),
+            )
         }
-        return
     }
-    val cols = vm.prefs.columns
-    FreeAppGrid(
-        vm = vm, columns = cols, onOpenFolder = onOpenFolder,
-        iconSize = iconSizeFor(cols, vm.prefs.dockPosition != DockPosition.BOTTOM) * (vm.prefs.iconScale / 100f),
-        modifier = modifier,
-    )
 }
 
 @Composable

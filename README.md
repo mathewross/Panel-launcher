@@ -70,6 +70,7 @@ Installing a newer build updates the app in place and keeps your layout.
 | Drag an app **onto another app** | Make a folder. Drag more apps onto it to add them |
 | Tap a folder | Open it; tap its name to rename (e.g. "Finance"). Long-press an app inside to remove it |
 | Long-press a folder | Move it, or *Ungroup* to put its apps back on the grid |
+| Long-press an **empty spot** on the home grid | Wallpaper & style (Pixel's app), Panel wallpaper photo, Home settings |
 | App panel › long-press › *Add to folder…* | Put an app straight into a folder, or start a new one |
 | Long-press an app without moving | Menu: remove, add to dock, app info, uninstall |
 | Long-press an app in the dock | Move up/down, remove, app info, uninstall |

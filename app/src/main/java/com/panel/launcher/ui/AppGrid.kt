@@ -68,6 +68,7 @@ fun FreeAppGrid(
     columns: Int,
     iconSize: Dp,
     onOpenFolder: (String) -> Unit,
+    emptySpaceMenu: () -> List<MenuAction> = { emptyList() },
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -83,6 +84,7 @@ fun FreeAppGrid(
     var settleKey by remember { mutableStateOf<String?>(null) }
     val settle = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     var menuKey by remember { mutableStateOf<String?>(null) }
+    var emptyMenuAt by remember { mutableStateOf<IntOffset?>(null) }
     LaunchedEffect(saved) { if (draggingKey == null) slots = saved }
 
     val showLabels = vm.prefs.showLabels
@@ -113,7 +115,7 @@ fun FreeAppGrid(
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val from = indexAt(down.position)
-                            val key = slots.getOrNull(from)?.takeIf { vm.occupied(it) } ?: return@awaitEachGesture
+                            val key = slots.getOrNull(from)?.takeIf { vm.occupied(it) }
 
                             // Phase 1: tap, scroll, or long-press?
                             val outcome = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
@@ -129,6 +131,14 @@ fun FreeAppGrid(
                                     }
                                 }
                                 result
+                            }
+                            if (key == null) {
+                                // Empty cell: long-press shows the Pixel-style home menu.
+                                if (outcome == null && from >= 0) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    emptyMenuAt = down.position.round()
+                                }
+                                return@awaitEachGesture
                             }
                             when (outcome) {
                                 TAP -> {
@@ -192,6 +202,15 @@ fun FreeAppGrid(
                         }
                     },
             ) {
+                emptyMenuAt?.let { at ->
+                    Box(Modifier.offset { at }.size(1.dp)) {
+                        DropdownMenu(expanded = true, onDismissRequest = { emptyMenuAt = null }) {
+                            emptySpaceMenu().forEach { a ->
+                                DropdownMenuItem(text = { Text(a.label) }, onClick = { emptyMenuAt = null; a.run() })
+                            }
+                        }
+                    }
+                }
                 // Where the app will land.
                 if (draggingKey != null && hoverIndex >= 0) {
                     Box(
