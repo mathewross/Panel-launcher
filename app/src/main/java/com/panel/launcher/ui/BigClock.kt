@@ -76,6 +76,7 @@ fun BigClock(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier = Modif
     val info = WallpaperText.copy(color = WallpaperText.color.copy(alpha = 0.92f))
 
     Column(modifier.padding(top = p.clockOffset.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (p.showStatus) StatusIcons(vm.status, info.color, Modifier.padding(bottom = 6.dp), size = 13.dp)
         Text(
             Fmt.pattern(now, "EEE d MMM"), style = info, fontSize = 19.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = a.calendar).padding(horizontal = 6.dp),

@@ -81,7 +81,10 @@ private fun BoxesHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modif
                 letterSpacing = (-1).sp,
             )
             val scale = vm.prefs.boxNumberScale / 100f
-            FolioBox("Local time", time, clockSub, a.clock, null, Modifier.weight(1f), numberStyle, scale, fitTo = time)
+            FolioBox(
+                "Local time", time, clockSub, a.clock, null, Modifier.weight(1f), numberStyle, scale, fitTo = time,
+                trailing = if (vm.prefs.showStatus) ({ StatusIcons(vm.status, LocalTiles.current.subtle, size = 11.dp) }) else null,
+            )
             FolioBox(
                 Fmt.pattern(now, "EEEE"), Fmt.pattern(now, "d"), Fmt.pattern(now, "MMMM"),
                 a.calendar, null, Modifier.weight(1f), numberStyle, scale, fitTo = time,
@@ -114,6 +117,8 @@ private fun FolioBox(
     numberStyle: TextStyle = TextStyle(fontWeight = FontWeight.Medium, letterSpacing = (-1).sp),
     scale: Float = 1f,
     fitTo: String = value,
+    /** Optional small content at the end of the subtitle line (e.g. battery & signal). */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = LocalTiles.current
     val measurer = rememberTextMeasurer()
@@ -136,7 +141,14 @@ private fun FolioBox(
                     value, style = numberStyle, color = p.fg, fontSize = big,
                     maxLines = 1, softWrap = false, lineHeight = big,
                 )
-                Text(subtitle, color = p.subtle, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(subtitle, color = p.subtle, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false))
+                    if (trailing != null) {
+                        Spacer(Modifier.weight(1f))
+                        trailing()
+                    }
+                }
             }
         }
     }
@@ -216,54 +228,73 @@ private fun EventLine(e: CalEvent, now: Long, fg: Color, subtle: Color, onClick:
 private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier) {
     val ctx = LocalContext.current
     val now = vm.now
+    val p = vm.prefs
     val sub = WallpaperText.copy(color = WallpaperText.color.copy(alpha = 0.85f))
-    Column(modifier.padding(horizontal = 8.dp)) {
+    val centered = p.glanceAlign == "center"
+    val (family, _) = clockFamily(p.glanceFont)
+    val size = p.glanceClockSize
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+    ) {
         Text(
             Fmt.time(ctx, now),
-            style = WallpaperText, fontSize = 76.sp, fontWeight = FontWeight.Light, letterSpacing = (-3).sp,
-            lineHeight = 80.sp,
+            style = WallpaperText, fontSize = size.sp, fontFamily = family,
+            fontWeight = FontWeight(p.glanceWeight.coerceIn(100, 900)),
+            letterSpacing = (-0.035f * size).sp, lineHeight = (size * 1.05f).sp, maxLines = 1, softWrap = false,
             modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = a.clock),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                Fmt.pattern(now, "EEEE, d MMMM"), style = sub, fontSize = 17.sp,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = a.calendar).padding(vertical = 2.dp),
-            )
-            val w = vm.weather
-            Text("  ·  ", style = sub, fontSize = 17.sp)
-            Text(
-                if (w != null) "${WeatherRepository.emoji(w.code, w.isDay)} ${Fmt.temp(w.tempC, vm.prefs.fahrenheit)}" else "🌤️ Weather",
-                style = sub, fontSize = 17.sp,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = a.weather).padding(vertical = 2.dp),
-            )
+        if (p.glanceShowDate || p.glanceShowWeather) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (p.glanceShowDate) {
+                    Text(
+                        Fmt.pattern(now, "EEEE, d MMMM"), style = sub, fontSize = 17.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = a.calendar).padding(vertical = 2.dp),
+                    )
+                }
+                if (p.glanceShowDate && p.glanceShowWeather) Text("  ·  ", style = sub, fontSize = 17.sp)
+                if (p.glanceShowWeather) {
+                    val w = vm.weather
+                    Text(
+                        if (w != null) "${WeatherRepository.emoji(w.code, w.isDay)} ${Fmt.temp(w.tempC, p.fahrenheit)}" else "🌤️ Weather",
+                        style = sub, fontSize = 17.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = a.weather).padding(vertical = 2.dp),
+                    )
+                }
+            }
         }
-        vm.nextAlarm?.let {
-            Text("⏰ " + Fmt.shortTime(ctx, it), style = sub, fontSize = 15.sp,
-                modifier = Modifier.padding(top = 2.dp).clickable(onClick = a.clock))
+        if (p.showStatus) StatusIcons(vm.status, sub.color, Modifier.padding(top = 4.dp), size = 13.dp)
+        if (p.glanceShowAlarm) {
+            vm.nextAlarm?.let {
+                Text("⏰ " + Fmt.shortTime(ctx, it), style = sub, fontSize = 15.sp,
+                    modifier = Modifier.padding(top = 2.dp).clickable(onClick = a.clock))
+            }
         }
         CompactMusic(vm, sub, Modifier.padding(top = 8.dp))
-        Spacer(Modifier.height(14.dp))
-        if (!vm.hasCalendar) {
-            Text("📅  Tap to show upcoming events", style = sub, fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = a.connectCalendar))
-        } else {
-            val list = upNext(vm.upNextEvents, 2)
-            if (list.isEmpty()) {
-                Text("Nothing coming up", style = sub, fontSize = 15.sp, modifier = Modifier.clickable(onClick = a.agenda))
-            }
-            Column(
-                Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = a.agenda),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                list.forEach { e ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(width = 4.dp, height = 36.dp).clip(RoundedCornerShape(2.dp))
-                            .background(Color(e.color or 0xFF000000.toInt())))
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(e.title, style = WallpaperText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(Fmt.relative(ctx, e, now), style = sub, fontSize = 13.sp, maxLines = 1)
+        if (p.glanceEvents > 0) {
+            Spacer(Modifier.height(14.dp))
+            if (!vm.hasCalendar) {
+                Text("📅  Tap to show upcoming events", style = sub, fontSize = 15.sp,
+                    modifier = Modifier.clickable(onClick = a.connectCalendar))
+            } else {
+                val list = upNext(vm.upNextEvents, p.glanceEvents)
+                if (list.isEmpty()) {
+                    Text("Nothing coming up", style = sub, fontSize = 15.sp, modifier = Modifier.clickable(onClick = a.agenda))
+                }
+                Column(
+                    Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = a.agenda),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    list.forEach { e ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(width = 4.dp, height = 36.dp).clip(RoundedCornerShape(2.dp))
+                                .background(Color(e.color or 0xFF000000.toInt())))
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(e.title, style = WallpaperText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(Fmt.relative(ctx, e, now), style = sub, fontSize = 13.sp, maxLines = 1)
+                            }
                         }
                     }
                 }

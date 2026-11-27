@@ -63,6 +63,25 @@ class Prefs(context: Context) {
     var upNextAllDay by bool("up_next_all_day", true)
     var showMusic by bool("show_music", true)
     var showBadges by bool("show_badges", true)
+
+    // Bottom bar: "panel" (settings · search · apps), "google" (Google's search widget) or "hidden"
+    var bottomBar by string("bottom_bar", "panel")
+    var bottomWidgetId by int("bottom_widget_id", -1)
+    /** Home widgets, top to bottom, stored as "appWidgetId:heightDp". */
+    var widgets: List<String> by list("widgets")
+
+    // Battery / Wi-Fi / signal on the home screen
+    var showStatus by bool("show_status", false)
+
+    // Glance style
+    var glanceClockSize by int("glance_clock_size", 76)
+    var glanceWeight by int("glance_weight", 300)
+    var glanceFont by string("glance_font", "default")
+    var glanceAlign by string("glance_align", "start")
+    var glanceEvents by int("glance_events", 2)
+    var glanceShowDate by bool("glance_show_date", true)
+    var glanceShowWeather by bool("glance_show_weather", true)
+    var glanceShowAlarm by bool("glance_show_alarm", true)
     var foldersJson by string("folders", "{}")
     var showRecents by bool("show_recents", true)
     var hideStatusBar by bool("hide_status_bar", false)

@@ -32,6 +32,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+const val REQUEST_BIND_WIDGET = 7101
+const val REQUEST_CONFIGURE_WIDGET = 7102
+
 /** Marks an empty cell in the home grid. */
 const val EMPTY_SLOT = "-"
 
@@ -228,6 +231,151 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- Battery / Wi-Fi / signal ----------
+
+    var status by mutableStateOf(com.panel.launcher.data.DeviceStatus()); private set
+    private val batteryReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context, i: android.content.Intent) = refreshStatus()
+    }
+    private var statusListening = false
+
+    fun refreshStatus() {
+        if (!prefs.showStatus) return
+        if (!statusListening) {
+            statusListening = true
+            androidx.core.content.ContextCompat.registerReceiver(
+                ctx, batteryReceiver,
+                android.content.IntentFilter().apply {
+                    addAction(android.content.Intent.ACTION_BATTERY_CHANGED)
+                    addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION)
+                },
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }
+        status = com.panel.launcher.data.DeviceStatus.read(ctx)
+    }
+
+    // ---------- Widgets ----------
+
+    val widgetManager: android.appwidget.AppWidgetManager = android.appwidget.AppWidgetManager.getInstance(app)
+    val widgetHost = com.panel.launcher.data.PanelWidgetHost(app)
+
+    data class PlacedWidget(val id: Int, val heightDp: Int)
+
+    val widgets: List<PlacedWidget>
+        get() = prefs.widgets.mapNotNull { s ->
+            val parts = s.split(':')
+            val id = parts.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
+            PlacedWidget(id, parts.getOrNull(1)?.toIntOrNull() ?: 120)
+        }
+
+    private fun saveWidgets(list: List<PlacedWidget>) {
+        prefs.widgets = list.map { "${it.id}:${it.heightDp}" }
+    }
+
+    fun widgetInfo(id: Int): android.appwidget.AppWidgetProviderInfo? =
+        runCatching { widgetManager.getAppWidgetInfo(id) }.getOrNull()
+
+    /** Every widget offered by installed apps (incl. a work profile). */
+    fun widgetProviders(): List<android.appwidget.AppWidgetProviderInfo> = runCatching {
+        val um = ctx.getSystemService(android.os.UserManager::class.java)
+        um.userProfiles.flatMap { widgetManager.getInstalledProvidersForProfile(it) }
+    }.getOrDefault(emptyList())
+
+    private class PendingWidget(val id: Int, val info: android.appwidget.AppWidgetProviderInfo, val forBottomBar: Boolean)
+    private var pendingWidget: PendingWidget? = null
+
+    /** Starts adding a widget: asks Android for permission if needed, then the widget's setup screen. */
+    fun beginAddWidget(activity: android.app.Activity, info: android.appwidget.AppWidgetProviderInfo, forBottomBar: Boolean = false) {
+        val id = widgetHost.allocateAppWidgetId()
+        pendingWidget = PendingWidget(id, info, forBottomBar)
+        val bound = runCatching { widgetManager.bindAppWidgetIdIfAllowed(id, info.profile, info.provider, null) }.getOrDefault(false)
+        if (bound) afterWidgetBound(activity)
+        else {
+            // First time only: Android asks "Allow Panel to create widgets and access their data?"
+            val intent = android.content.Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_BIND)
+                .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+                .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, info.profile)
+            @Suppress("DEPRECATION")
+            activity.startActivityForResult(intent, REQUEST_BIND_WIDGET)
+        }
+    }
+
+    private fun afterWidgetBound(activity: android.app.Activity) {
+        val p = pendingWidget ?: return
+        if (p.info.configure != null) {
+            runCatching {
+                widgetHost.startAppWidgetConfigureActivityForResult(activity, p.id, 0, REQUEST_CONFIGURE_WIDGET, null)
+            }.onFailure { commitWidget() }
+        } else commitWidget()
+    }
+
+    /** Called by MainActivity with the results of the permission / setup screens. */
+    fun onWidgetActivityResult(activity: android.app.Activity, requestCode: Int, ok: Boolean) {
+        val p = pendingWidget ?: return
+        when (requestCode) {
+            REQUEST_BIND_WIDGET -> if (ok) afterWidgetBound(activity) else cancelWidget()
+            REQUEST_CONFIGURE_WIDGET -> if (ok) commitWidget() else cancelWidget()
+        }
+        if (p != pendingWidget) return
+    }
+
+    private fun commitWidget() {
+        val p = pendingWidget ?: return
+        pendingWidget = null
+        if (p.forBottomBar) {
+            if (prefs.bottomWidgetId != -1) widgetHost.deleteAppWidgetId(prefs.bottomWidgetId)
+            prefs.bottomWidgetId = p.id
+            prefs.bottomBar = "google"
+        } else {
+            val density = ctx.resources.displayMetrics.density
+            val h = (p.info.minHeight / density).toInt().coerceIn(56, 360)
+            saveWidgets(widgets + PlacedWidget(p.id, h))
+        }
+    }
+
+    private fun cancelWidget() {
+        pendingWidget?.let { widgetHost.deleteAppWidgetId(it.id) }
+        pendingWidget = null
+    }
+
+    fun removeWidget(id: Int) {
+        widgetHost.deleteAppWidgetId(id)
+        saveWidgets(widgets.filter { it.id != id })
+    }
+
+    fun resizeWidget(id: Int, byDp: Int) {
+        saveWidgets(widgets.map { if (it.id == id) it.copy(heightDp = (it.heightDp + byDp).coerceIn(48, 480)) else it })
+    }
+
+    fun moveWidget(id: Int, by: Int) {
+        val list = widgets.toMutableList()
+        val i = list.indexOfFirst { it.id == id }
+        val j = (i + by).coerceIn(0, list.lastIndex)
+        if (i < 0 || i == j) return
+        list.add(j, list.removeAt(i))
+        saveWidgets(list)
+    }
+
+    /** The Google app's search bar widget, if the Google app is installed. */
+    fun googleSearchWidget(): android.appwidget.AppWidgetProviderInfo? =
+        widgetProviders().filter { it.provider.packageName == "com.google.android.googlequicksearchbox" }
+            .sortedWith(compareBy(
+                { !(it.loadLabel(ctx.packageManager)?.contains("search", ignoreCase = true) ?: false) },
+                { it.minHeight },
+            ))
+            .firstOrNull()
+
+    fun setBottomBar(activity: android.app.Activity, mode: String) {
+        if (mode == "google") {
+            if (prefs.bottomWidgetId != -1 && widgetInfo(prefs.bottomWidgetId) != null) { prefs.bottomBar = "google"; return }
+            val info = googleSearchWidget()
+            if (info == null) { toast("Install the Google app to use its search bar"); return }
+            beginAddWidget(activity, info, forBottomBar = true)
+        } else prefs.bottomBar = mode
+    }
+
     fun openMusicApp() {
         val pkg = nowPlaying?.packageName ?: return
         apps.firstOrNull { it.packageName == pkg }?.let { launch(it) }
@@ -264,6 +412,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 now = System.currentTimeMillis()
                 refreshAlarm()
+                refreshStatus() // signal strength has no broadcast; check once a minute
                 if (ticks++ % 5 == 0) refreshCalendar()
                 if (ticks % 30 == 0) refreshWeather()
                 delay(60_000 - System.currentTimeMillis() % 60_000 + 50)
@@ -272,6 +421,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onResume() {
+        refreshStatus()
         resumed = true
         resumeTick++
         now = System.currentTimeMillis()

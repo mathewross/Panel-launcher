@@ -158,6 +158,22 @@ private fun SettingsBody(
         Divider()
         SwitchRow("Show Up next box", p.showUpNext) { p.showUpNext = it }
         Divider()
+        ChoiceRow(
+            "Bottom bar",
+            listOf("Panel" to "panel", "Google search" to "google", "Hidden" to "hidden"),
+            p.bottomBar,
+        ) { mode -> (ctx as? android.app.Activity)?.let { vm.setBottomBar(it, mode) } }
+        Text(
+            when (p.bottomBar) {
+                "google" -> "Google's own search bar widget (with AI Mode, Lens and voice, as Google provides them). Long-press it for options."
+                "hidden" -> "Swipe up or sideways for your apps and search; long-press empty space for settings and widgets."
+                else -> "Settings, search and all apps in one glass bar."
+            },
+            color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+        )
+        Divider()
+        SwitchRow("Show battery, Wi-Fi & signal", p.showStatus) { p.showStatus = it; vm.refreshStatus() }
+        Divider()
         SwitchRow("Hide status bar on home screen", p.hideStatusBar) { p.hideStatusBar = it }
 
         Text(
@@ -255,6 +271,32 @@ private fun SettingsBody(
                     null, if (p.iconPack == pack.packageName) Blue else null,
                 ) { vm.setIconStyle("pack", pack.packageName) }
             }
+        }
+    }
+
+    if (p.headerStyle == HeaderStyle.GLANCE) {
+        Group("Glance style") {
+            SliderRow("Clock size", p.glanceClockSize, 40..140, "${p.glanceClockSize}") { p.glanceClockSize = it }
+            Divider()
+            ChoiceRow(
+                "Weight",
+                listOf("Thin" to 200, "Light" to 300, "Regular" to 400, "Medium" to 500, "Bold" to 700),
+                p.glanceWeight,
+            ) { p.glanceWeight = it }
+            Divider()
+            ChoiceRow("Font", listOf("Default" to "default") + ClockFonts.filter { it.first != "bold" }.map { it.second to it.first }, p.glanceFont) {
+                p.glanceFont = it
+            }
+            Divider()
+            ChoiceRow("Alignment", listOf("Left" to "start", "Centre" to "center"), p.glanceAlign) { p.glanceAlign = it }
+            Divider()
+            ChoiceRow("Events shown", listOf("0" to 0, "1" to 1, "2" to 2, "3" to 3), p.glanceEvents) { p.glanceEvents = it }
+            Divider()
+            SwitchRow("Show date", p.glanceShowDate) { p.glanceShowDate = it }
+            Divider()
+            SwitchRow("Show weather", p.glanceShowWeather) { p.glanceShowWeather = it }
+            Divider()
+            SwitchRow("Show next alarm", p.glanceShowAlarm) { p.glanceShowAlarm = it }
         }
     }
 

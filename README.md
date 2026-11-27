@@ -125,6 +125,18 @@ of app panel*). It counts launches made through Panel, so no usage-access permis
   screen can stay portrait even with auto-rotate on.
 - **Pixel font** (Google Sans) throughout, on by default.
 
+### Widgets, Google search bar & status
+
+- **Widgets**: long-press empty space › *Widgets* to browse every widget your apps offer
+  (with previews). They stack under the boxes. Long-press one to make it taller or shorter,
+  move it, or remove it. The first time, Android asks you to allow Panel to create widgets.
+- **Bottom bar**: *Panel* (settings · search · apps), *Google search* (the Google app's own
+  search bar widget, with AI Mode, Lens and voice as Google provides them), or *Hidden*.
+- **Battery, Wi-Fi & signal**: a small status row in the time box, under the Glance date,
+  or above the big clock, so you can hide the system status bar on the home screen.
+- **Glance style**: clock size, weight, font, left or centred, and which details and how
+  many events to show.
+
 ### Big clock with depth effect
 
 Like the iOS lock screen: a huge clock that the subject of your wallpaper stands in front of.

@@ -52,6 +52,9 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wallpaper
+import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -118,6 +121,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     var focusSearch by remember { mutableStateOf(false) }
     var openFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var folderPickFor by remember { mutableStateOf<AppEntry?>(null) }
+    var widgetPicker by rememberSaveable { mutableStateOf(false) }
 
     // ---- App panel: 0 = closed, 1 = open. Follows your finger while you swipe. ----
     val scope = rememberCoroutineScope()
@@ -229,7 +233,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     val menuController = remember { ContextMenuController() }
     val folderT by animateFloatAsState(if (openFolder != null) 1f else 0f, tween(280), label = "folderDepth")
     val menuT by animateFloatAsState(if (menuController.request != null) 1f else 0f, tween(220), label = "menuDepth")
-    val agendaT by animateFloatAsState(if (agenda) 1f else 0f, tween(300), label = "agendaDepth")
+    val agendaT by animateFloatAsState(if (agenda || widgetPicker) 1f else 0f, tween(300), label = "agendaDepth")
     val depth: () -> Float = { maxOf(panel.value, folderT, menuT, agendaT) }
     val blurPx = with(density) { 24.dp.toPx() }
     val depthLayer: androidx.compose.ui.graphics.GraphicsLayerScope.(Float) -> Unit = { extraScale ->
@@ -293,7 +297,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
 
     LaunchedEffect(homePresses) {
         if (homePresses > 0) {
-            panel.snapTo(0f); focusSearch = false; settings = false; agenda = false; openFolder = null
+            panel.snapTo(0f); focusSearch = false; settings = false; agenda = false; openFolder = null; widgetPicker = false
             menuController.dismiss()
             if (!homeAtRest()) restoreHome(cascade = false)
         }
@@ -436,10 +440,15 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                         }
                         Column(Modifier.weight(1f)) {
                             Header(vm, actions, Modifier.graphicsLayer { entranceLayer(0) })
+                            if (vm.widgets.isNotEmpty()) {
+                                Spacer(Modifier.height(12.dp))
+                                WidgetStack(vm, Modifier.graphicsLayer { entranceLayer(1) })
+                            }
                             Spacer(Modifier.height(20.dp))
                             FavoritesGrid(
                                 vm, onOpenSidebar = { openPanel(false) }, onOpenFolder = { openFolder = it },
                                 onOpenSettings = { settings = true },
+                                onOpenWidgets = { widgetPicker = true },
                                 onPickPanelWallpaper = {
                                     wallpaperPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                                 },
@@ -453,11 +462,29 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     }
                 }
                 if (dockPos == DockPosition.BOTTOM) Box(Modifier.graphicsLayer { entranceLayer(2) }) { Dock(vm) }
-                SearchBar(
-                    onSearch = { openPanel(true) },
-                    onApps = { openPanel(false) },
-                    onSettings = { settings = true },
-                )
+                when (vm.prefs.bottomBar) {
+                    "hidden" -> Spacer(Modifier.height(8.dp))
+                    "google" -> {
+                        val id = vm.prefs.bottomWidgetId
+                        if (id != -1) {
+                            HostedWidget(
+                                vm, id,
+                                Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp).height(56.dp),
+                                onLongPress = { bounds ->
+                                    menuController.show(bounds, listOf(
+                                        MenuAction("Use Panel's bar instead", Icons.Outlined.Search) { vm.prefs.bottomBar = "panel" },
+                                        MenuAction("Hide bottom bar", Icons.Outlined.VisibilityOff) { vm.prefs.bottomBar = "hidden" },
+                                    ))
+                                },
+                            )
+                        } else Spacer(Modifier.height(8.dp))
+                    }
+                    else -> SearchBar(
+                        onSearch = { openPanel(true) },
+                        onApps = { openPanel(false) },
+                        onSettings = { settings = true },
+                    )
+                }
             }
             } // end of zooming home layer
 
@@ -484,6 +511,8 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
             )
 
             AgendaPanel(vm, agenda) { agenda = false }
+
+            WidgetPicker(vm, widgetPicker) { widgetPicker = false }
 
             ContextMenuOverlay(menuController)
         }
@@ -527,6 +556,7 @@ private fun FavoritesGrid(
     onOpenSidebar: () -> Unit,
     onOpenFolder: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWidgets: () -> Unit,
     onPickPanelWallpaper: () -> Unit,
     modifier: Modifier,
 ) {
@@ -545,6 +575,7 @@ private fun FavoritesGrid(
                             vm.start(ctx, Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS))
                         }
                     },
+                    MenuAction("Widgets", Icons.Outlined.Widgets) { onOpenWidgets() },
                     MenuAction("Panel wallpaper photo", Icons.Outlined.Image) { onPickPanelWallpaper() },
                     MenuAction("Home settings", Icons.Outlined.Settings) { onOpenSettings() },
                 )

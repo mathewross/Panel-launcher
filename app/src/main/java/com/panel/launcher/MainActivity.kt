@@ -33,6 +33,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        runCatching { vm.widgetHost.startListening() }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        runCatching { vm.widgetHost.stopListening() }
+    }
+
+    @Deprecated("Widget permission / setup screens report back here")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_BIND_WIDGET || requestCode == REQUEST_CONFIGURE_WIDGET) {
+            vm.onWidgetActivityResult(this, requestCode, resultCode == RESULT_OK)
+        }
+    }
+
     override fun onPause() {
         super.onPause()
         vm.onPause()
