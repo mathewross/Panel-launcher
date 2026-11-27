@@ -411,14 +411,21 @@ private fun RecentRow(vm: LauncherViewModel, onOpen: (AppEntry) -> Unit) {
             "Recent", color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(start = 14.dp, bottom = 2.dp),
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            vm.recentApps(5).forEach { app ->
-                androidx.compose.runtime.CompositionLocalProvider(LocalWallpaperText provides TextOnDarkWallpaper) {
-                    AppVisual(
-                        app, 46.dp, vm.prefs.iconRoundness, showLabel = true,
-                        modifier = Modifier.clip(RoundedCornerShape(14.dp))
-                            .combinedClickable(onClick = { onOpen(app) }),
-                    )
+        // As many as fit the panel's width (3–6), each in an equal cell so nothing gets cut off.
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
+            val n = (maxWidth / 66.dp).toInt().coerceIn(3, 6)
+            val iconSize = minOf(46.dp, maxWidth / n - 18.dp)
+            Row(Modifier.fillMaxWidth()) {
+                vm.recentApps(n).forEach { app ->
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        androidx.compose.runtime.CompositionLocalProvider(LocalWallpaperText provides TextOnDarkWallpaper) {
+                            AppVisual(
+                                app, iconSize, vm.prefs.iconRoundness, showLabel = true,
+                                modifier = Modifier.clip(RoundedCornerShape(14.dp))
+                                    .combinedClickable(onClick = { onOpen(app) }),
+                            )
+                        }
+                    }
                 }
             }
         }

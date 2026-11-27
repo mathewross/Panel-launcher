@@ -248,11 +248,43 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
                 android.content.IntentFilter().apply {
                     addAction(android.content.Intent.ACTION_BATTERY_CHANGED)
                     addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION)
+                    addAction(android.media.AudioManager.RINGER_MODE_CHANGED_ACTION)
                 },
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
             )
         }
         status = com.panel.launcher.data.DeviceStatus.read(ctx)
+    }
+
+    /**
+     * Ring → Vibrate → Silent. Ring/vibrate need no permission. On some phones Silent counts as
+     * a Do Not Disturb change, which needs "Do Not Disturb access"; then we skip back to Ring.
+     */
+    fun cycleRinger() {
+        val am = ctx.getSystemService(android.media.AudioManager::class.java) ?: return
+        val next = when (am.ringerMode) {
+            android.media.AudioManager.RINGER_MODE_NORMAL -> android.media.AudioManager.RINGER_MODE_VIBRATE
+            android.media.AudioManager.RINGER_MODE_VIBRATE -> android.media.AudioManager.RINGER_MODE_SILENT
+            else -> android.media.AudioManager.RINGER_MODE_NORMAL
+        }
+        val ok = runCatching { am.ringerMode = next }.isSuccess && am.ringerMode == next
+        if (!ok) {
+            runCatching { am.ringerMode = android.media.AudioManager.RINGER_MODE_NORMAL }
+            if (next == android.media.AudioManager.RINGER_MODE_SILENT) {
+                toast("Silent needs Do Not Disturb access — press and hold the bell to allow it")
+            }
+        } else {
+            toast(when (next) {
+                android.media.AudioManager.RINGER_MODE_VIBRATE -> "Vibrate"
+                android.media.AudioManager.RINGER_MODE_SILENT -> "Silent"
+                else -> "Ring"
+            })
+        }
+        status = com.panel.launcher.data.DeviceStatus.read(ctx)
+    }
+
+    fun openDndAccess(context: Context) {
+        start(context, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
     }
 
     // ---------- Widgets ----------

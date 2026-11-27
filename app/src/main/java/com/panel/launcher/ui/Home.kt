@@ -642,9 +642,15 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?
     // Dock height (Settings): 0 = straight under the weather pill … 100 = bottom of the screen.
     val f = vm.prefs.dockHeight.coerceIn(0, 100) / 100f
     var dockH by remember { mutableStateOf(0.dp) }
+    // Glance (with weather on) and Big clock already show the weather, so skip the pill there.
+    val showWeatherPill = when (vm.prefs.headerStyle) {
+        com.panel.launcher.data.HeaderStyle.BOXES -> true
+        com.panel.launcher.data.HeaderStyle.GLANCE -> !vm.prefs.glanceShowWeather
+        com.panel.launcher.data.HeaderStyle.CLOCK -> false
+    }
     BoxWithConstraints(Modifier.width(68.dp).fillMaxHeight()) {
-        val compact = 112.dp
-        val gap = 12.dp
+        val compact = if (showWeatherPill) 112.dp else 0.dp
+        val gap = if (showWeatherPill) 12.dp else 0.dp
         val minTop = compact + gap
         val maxTop = (maxHeight - dockH).coerceAtLeast(minTop)
         val dockTop = minTop + (maxTop - minTop) * f
@@ -652,7 +658,7 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?
         val pillH by animateDpAsState(target, label = "weatherPill")
         val tall = pillH >= 150.dp
 
-        Tile(
+        if (showWeatherPill) Tile(
             Modifier.fillMaxWidth().height(pillH), onClick = actions.weather, onLongClick = actions.weatherLongPress,
             padding = 0.dp, shape = pill,
         ) {

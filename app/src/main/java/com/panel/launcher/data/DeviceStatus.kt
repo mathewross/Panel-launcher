@@ -16,6 +16,8 @@ data class DeviceStatus(
     val charging: Boolean = false,
     val wifi: Int = -1,
     val cell: Int = -1,
+    /** AudioManager.RINGER_MODE_NORMAL / VIBRATE / SILENT */
+    val ringer: Int = android.media.AudioManager.RINGER_MODE_NORMAL,
 ) {
     companion object {
         /** Reads everything at once. No permissions beyond the normal network-state one. */
@@ -44,7 +46,9 @@ data class DeviceStatus(
                 else if (Build.VERSION.SDK_INT >= 28) tm.signalStrength?.level?.coerceIn(0, 4) ?: -1 else -1
             }.getOrDefault(-1)
 
-            return DeviceStatus(level, plugged, wifi, cell)
+            val ringer = runCatching { ctx.getSystemService(android.media.AudioManager::class.java).ringerMode }
+                .getOrDefault(android.media.AudioManager.RINGER_MODE_NORMAL)
+            return DeviceStatus(level, plugged, wifi, cell, ringer)
         }
     }
 }

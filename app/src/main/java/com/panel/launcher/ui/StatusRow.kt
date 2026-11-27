@@ -1,6 +1,19 @@
 package com.panel.launcher.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,10 +38,39 @@ private val Charging = Color(0xFF34C759)
 
 /** Signal bars · Wi-Fi · battery %, drawn to match Panel rather than borrowed system icons. */
 @Composable
-fun StatusIcons(status: DeviceStatus, color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) {
+fun StatusIcons(
+    status: DeviceStatus,
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 12.dp,
+    /** Tap the bell to cycle ring / vibrate / silent; long-press for its permission. */
+    onRinger: (() -> Unit)? = null,
+    onRingerLongPress: (() -> Unit)? = null,
+    /** Narrow spaces (the time box): just the bell and battery. */
+    compact: Boolean = false,
+) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (status.cell >= 0) SignalBars(status.cell, color, size)
-        if (status.wifi >= 0) WifiArcs(status.wifi, color, size)
+        if (onRinger != null) {
+            val icon = when (status.ringer) {
+                android.media.AudioManager.RINGER_MODE_VIBRATE -> Icons.Outlined.Vibration
+                android.media.AudioManager.RINGER_MODE_SILENT -> Icons.Outlined.NotificationsOff
+                else -> Icons.Outlined.NotificationsActive
+            }
+            val haptics = LocalHapticFeedback.current
+            Box(
+                Modifier
+                    .clip(CircleShape)
+                    .pointerInput(onRinger, onRingerLongPress) {
+                        detectTapGestures(
+                            onTap = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onRinger() },
+                            onLongPress = { onRingerLongPress?.invoke() },
+                        )
+                    }
+                    .padding(4.dp),
+            ) { Icon(icon, "Ringer", tint = color, modifier = Modifier.size(size * 1.35f)) }
+        }
+        if (!compact && status.cell >= 0) SignalBars(status.cell, color, size)
+        if (!compact && status.wifi >= 0) WifiArcs(status.wifi, color, size)
         if (status.battery >= 0) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

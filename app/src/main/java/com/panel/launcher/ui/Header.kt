@@ -83,7 +83,7 @@ private fun BoxesHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modif
             val scale = vm.prefs.boxNumberScale / 100f
             FolioBox(
                 "Local time", time, clockSub, a.clock, null, Modifier.weight(1f), numberStyle, scale, fitTo = time,
-                trailing = if (vm.prefs.showStatus) ({ StatusIcons(vm.status, LocalTiles.current.subtle, size = 11.dp) }) else null,
+                trailing = if (vm.prefs.showStatus) ({ StatusIcons(vm.status, LocalTiles.current.subtle, size = 11.dp, onRinger = vm::cycleRinger, onRingerLongPress = { vm.openDndAccess(ctx) }, compact = true) }) else null,
             )
             FolioBox(
                 Fmt.pattern(now, "EEEE"), Fmt.pattern(now, "d"), Fmt.pattern(now, "MMMM"),
@@ -263,7 +263,7 @@ private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modi
                 }
             }
         }
-        if (p.showStatus) StatusIcons(vm.status, sub.color, Modifier.padding(top = 4.dp), size = 13.dp)
+        if (p.showStatus) StatusIcons(vm.status, sub.color, Modifier.padding(top = 4.dp), size = 13.dp, onRinger = vm::cycleRinger, onRingerLongPress = { vm.openDndAccess(ctx) })
         if (p.glanceShowAlarm) {
             vm.nextAlarm?.let {
                 Text("⏰ " + Fmt.shortTime(ctx, it), style = sub, fontSize = 15.sp,
