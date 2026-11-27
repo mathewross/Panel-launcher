@@ -32,6 +32,8 @@ data class AppEntry(
     val packageName: String get() = component.packageName
 }
 
+data class AppShortcut(val info: android.content.pm.ShortcutInfo, val label: String, val icon: ImageBitmap?)
+
 /**
  * Reads installed apps through the regular LauncherApps API that every home-screen app uses.
  * No accessibility service, no QUERY_ALL_PACKAGES.
@@ -74,6 +76,32 @@ class AppRepository(private val context: Context) {
 
     fun launch(app: AppEntry, sourceBounds: android.graphics.Rect? = null, options: android.os.Bundle? = null) {
         runCatching { launcherApps.startMainActivity(app.component, app.user, sourceBounds, options) }
+    }
+
+    /** The app's own quick actions (needs Panel to be the default home app; no permission). */
+    fun shortcuts(app: AppEntry): List<AppShortcut> = runCatching {
+        if (!launcherApps.hasShortcutHostPermission()) return emptyList()
+        val q = LauncherApps.ShortcutQuery()
+            .setPackage(app.packageName)
+            .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST)
+        val dpi = context.resources.displayMetrics.densityDpi
+        launcherApps.getShortcuts(q, app.user).orEmpty()
+            .filter { it.isEnabled }
+            .sortedWith(compareBy({ !it.isDeclaredInManifest }, { it.rank }))
+            .take(5)
+            .map { info ->
+                val icon = runCatching {
+                    launcherApps.getShortcutIconDrawable(info, dpi)?.let { d ->
+                        val b = android.graphics.Bitmap.createBitmap(72, 72, android.graphics.Bitmap.Config.ARGB_8888)
+                        d.setBounds(0, 0, 72, 72); d.draw(Canvas(b)); b.asImageBitmap()
+                    }
+                }.getOrNull()
+                AppShortcut(info, (info.shortLabel ?: info.longLabel ?: "").toString(), icon)
+            }
+    }.getOrDefault(emptyList())
+
+    fun startShortcut(s: AppShortcut) {
+        runCatching { launcherApps.startShortcut(s.info, null, null) }
     }
 
     fun openAppInfo(app: AppEntry) {

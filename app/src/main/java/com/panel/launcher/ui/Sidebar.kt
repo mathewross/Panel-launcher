@@ -70,6 +70,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
@@ -292,10 +298,27 @@ private fun SidebarContent(
 /** One app in the panel list (also used as the lifted preview in its long-press menu). */
 @Composable
 private fun SidebarRowVisual(vm: LauncherViewModel, app: AppEntry, modifier: Modifier = Modifier) {
+    val badge = vm.badgeFor(app)
+    val latest = if (badge != null) vm.notificationsFor(app.packageName).firstOrNull() else null
     Row(modifier.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-        AppIcon(app, 44.dp, vm.prefs.iconRoundness)
+        Box(if (badge != null) Modifier.notificationGlow(badge.color) else Modifier) {
+            AppIcon(app, 44.dp, vm.prefs.iconRoundness)
+        }
         Spacer(Modifier.width(14.dp))
-        Text(app.label, color = Color.White, fontSize = 16.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f)) {
+            Text(app.label, color = Color.White, fontSize = 16.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Niagara-style one-line preview of the latest notification.
+            if (latest != null) {
+                Text(
+                    listOf(latest.title, latest.text).filter { it.isNotBlank() }.joinToString(": "),
+                    color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (badge != null) {
+            Spacer(Modifier.width(8.dp))
+            CountPill(badge.count, badge.color)
+        }
     }
 }
 
@@ -304,18 +327,12 @@ private fun SidebarRowVisual(vm: LauncherViewModel, app: AppEntry, modifier: Mod
 private fun SidebarApp(vm: LauncherViewModel, app: AppEntry, onAddToFolder: (AppEntry) -> Unit, onOpen: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val menus = LocalContextMenu.current
+    val sheet = LocalAppSheet.current
     val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
-    SidebarRowVisual(
-        vm, app,
-        Modifier
-            .fillMaxWidth()
-            .onGloballyPositioned { coords[0] = it }
-            .clip(RoundedCornerShape(14.dp))
-            .combinedClickable(
-                onClick = onOpen,
-                onLongClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    val c = coords[0] ?: return@combinedClickable
+    val left = vm.prefs.sidebarOnLeft
+    var swipe by remember { mutableFloatStateOf(0f) }
+    fun showSheet() {
+        val c = coords[0] ?: return
                     val items = listOf(
                         if (vm.isFavorite(app)) MenuAction("Remove from home", Icons.Outlined.RemoveCircleOutline) { vm.toggleFavorite(app) }
                         else MenuAction("Add to home", Icons.Outlined.Home) { vm.toggleFavorite(app) },
@@ -326,13 +343,51 @@ private fun SidebarApp(vm: LauncherViewModel, app: AppEntry, onAddToFolder: (App
                         MenuAction("Uninstall", Icons.Outlined.Delete, destructive = true) { vm.repo.uninstall(app) },
                     )
                     val w = c.size.width
-                    menus.show(c.boundsInWindow(), items) {
+                    menus.show(c.boundsInWindow(), items, extra = sheet(app)) {
                         SidebarRowVisual(
                             vm, app,
                             Modifier.width(with(androidx.compose.ui.platform.LocalDensity.current) { w.toDp() })
                                 .clip(RoundedCornerShape(14.dp)).background(Color(0xF2242426)),
                         )
                     }
+    }
+    SidebarRowVisual(
+        vm, app,
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { coords[0] = it }
+            .graphicsLayer { translationX = swipe * 0.35f }
+            // Niagara-style: swipe the app toward the middle of the screen to open its sheet.
+            .pointerInput(left) {
+                val inward = if (left) 1f else -1f
+                val threshold = 56.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var total = 0f
+                    val start = awaitHorizontalTouchSlopOrCancellation(down.id) { change, over ->
+                        if (over * inward > 0) { change.consume(); total = over }
+                    } ?: return@awaitEachGesture
+                    if (total == 0f) return@awaitEachGesture
+                    var fired = false
+                    horizontalDrag(start.id) { c ->
+                        total += c.positionChange().x
+                        c.consume()
+                        swipe = (total * inward).coerceAtLeast(0f) * inward
+                        if (!fired && total * inward > threshold) {
+                            fired = true
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showSheet()
+                        }
+                    }
+                    swipe = 0f
+                }
+            }
+            .clip(RoundedCornerShape(14.dp))
+            .combinedClickable(
+                onClick = onOpen,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showSheet()
                 },
             ),
     )

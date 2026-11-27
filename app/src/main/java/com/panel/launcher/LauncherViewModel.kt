@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.panel.launcher.data.AppEntry
@@ -147,6 +148,86 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------- Notifications (only with the user's opt-in notification access) ----------
+
+    var notifications by mutableStateOf<Map<String, List<com.panel.launcher.data.NotifItem>>>(emptyMap()); private set
+
+    /** What an icon shows when its app has something new: count, who it's from, and a colour. */
+    data class Badge(val count: Int, val who: String, val color: androidx.compose.ui.graphics.Color)
+
+    fun notificationsFor(pkg: String): List<com.panel.launcher.data.NotifItem> = notifications[pkg].orEmpty()
+
+    fun badgeFor(app: AppEntry): Badge? {
+        if (!prefs.showBadges) return null
+        val list = notifications[app.packageName] ?: return null
+        if (list.isEmpty()) return null
+        val latest = list.first()
+        val who = latest.title.ifBlank { latest.text }.take(18)
+        return Badge(list.sumOf { it.count }.coerceAtMost(99), who, colorFor(app))
+    }
+
+    private val iconColors = HashMap<String, androidx.compose.ui.graphics.Color>()
+
+    /** A vivid version of the icon's main colour, for its glow. */
+    fun colorFor(app: AppEntry): androidx.compose.ui.graphics.Color = iconColors.getOrPut(app.key) {
+        runCatching {
+            val bmp = app.icon.asAndroidBitmap()
+            val one = android.graphics.Bitmap.createScaledBitmap(bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, false), 6, 6, true)
+            var r = 0; var g = 0; var b = 0; var n = 0
+            for (y in 0 until 6) for (x in 0 until 6) {
+                val c = one.getPixel(x, y)
+                val hsv = FloatArray(3); android.graphics.Color.colorToHSV(c, hsv)
+                if (hsv[1] < 0.2f || hsv[2] < 0.25f) continue // skip white/grey/black: we want the brand colour
+                r += android.graphics.Color.red(c); g += android.graphics.Color.green(c); b += android.graphics.Color.blue(c); n++
+            }
+            if (n == 0) androidx.compose.ui.graphics.Color(0xFF0A84FF) else {
+                val hsv = FloatArray(3)
+                android.graphics.Color.colorToHSV(android.graphics.Color.rgb(r / n, g / n, b / n), hsv)
+                hsv[1] = (hsv[1] * 1.2f).coerceAtMost(1f); hsv[2] = hsv[2].coerceAtLeast(0.85f)
+                androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(hsv))
+            }
+        }.getOrDefault(androidx.compose.ui.graphics.Color(0xFF0A84FF))
+    }
+
+    fun openNotification(item: com.panel.launcher.data.NotifItem) {
+        val pi = item.contentIntent
+        if (pi == null) { apps.firstOrNull { it.packageName == item.packageName }?.let { launch(it) }; return }
+        runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= 34) {
+                val opts = android.app.ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                    android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED,
+                )
+                pi.send(ctx, 0, null, null, null, null, opts.toBundle())
+            } else pi.send()
+        }
+        launchTick++
+    }
+
+    /** Sends an inline reply through the notification's own reply action (like the shade does). */
+    fun replyTo(item: com.panel.launcher.data.NotifItem, text: String): Boolean {
+        val action = item.replyAction ?: return false
+        val input = action.remoteInputs?.firstOrNull { it.allowFreeFormInput } ?: return false
+        return runCatching {
+            val intent = android.content.Intent()
+            val results = android.os.Bundle().apply { putCharSequence(input.resultKey, text) }
+            android.app.RemoteInput.addResultsToIntent(arrayOf(input), intent, results)
+            action.actionIntent.send(ctx, 0, intent)
+        }.isSuccess
+    }
+
+    fun dismissNotification(item: com.panel.launcher.data.NotifItem) = MediaListener.dismiss(item.key)
+
+    fun openNotificationAccess(context: Context) {
+        val component = android.content.ComponentName(ctx, MediaListener::class.java)
+        val detail = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+        } else null
+        if (detail == null || !start(context, detail)) {
+            start(context, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+    }
+
     fun openMusicApp() {
         val pkg = nowPlaying?.packageName ?: return
         apps.firstOrNull { it.packageName == pkg }?.let { launch(it) }
@@ -174,6 +255,9 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         refreshApps()
         appsCallback = repo.watch { refreshApps() }
         media.start()
+        viewModelScope.launch {
+            com.panel.launcher.data.NotificationStore.byPackage.collect { notifications = it }
+        }
         hasNotificationAccess = media.hasNotificationAccess()
         viewModelScope.launch {
             var ticks = 0

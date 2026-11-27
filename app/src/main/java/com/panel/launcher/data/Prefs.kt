@@ -62,6 +62,7 @@ class Prefs(context: Context) {
     var filterAgenda by bool("filter_agenda", false)
     var upNextAllDay by bool("up_next_all_day", true)
     var showMusic by bool("show_music", true)
+    var showBadges by bool("show_badges", true)
     var foldersJson by string("folders", "{}")
     var showRecents by bool("show_recents", true)
     var hideStatusBar by bool("hide_status_bar", false)

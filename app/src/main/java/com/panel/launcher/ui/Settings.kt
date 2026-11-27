@@ -373,6 +373,22 @@ private fun SettingsBody(
         }
     }
 
+    Group("Notifications") {
+        SwitchRow("Glow & previews on icons", p.showBadges) { p.showBadges = it }
+        Divider()
+        ActionRow(
+            if (vm.hasNotificationAccess) "Notification access: on" else "Allow notification access",
+            if (vm.hasNotificationAccess) "Icons glow, and long-press shows notifications you can open, reply to or clear. Tap to turn off."
+            else "Needed for icon glow, previews and replies. Optional, and the kind of access some banking apps dislike.",
+            if (vm.hasNotificationAccess) null else Blue,
+        ) { vm.openNotificationAccess(ctx) }
+        Text(
+            "App shortcuts in the long-press sheet need no permission, only that Panel is your default home app. " +
+                "If Android says \"Restricted setting\" when allowing access: App info › ⋮ › Allow restricted settings.",
+            color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        )
+    }
+
     Group("Music") {
         SwitchRow("Show music controls", p.showMusic) { p.showMusic = it }
         Divider()

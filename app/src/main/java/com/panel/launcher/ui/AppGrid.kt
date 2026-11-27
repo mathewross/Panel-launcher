@@ -91,6 +91,7 @@ fun FreeAppGrid(
     var settleKey by remember { mutableStateOf<String?>(null) }
     val settle = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
     val menus = LocalContextMenu.current
+    val sheet = LocalAppSheet.current
     val gridCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     var pressedKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(saved) { if (draggingKey == null) slots = saved }
@@ -198,7 +199,7 @@ fun FreeAppGrid(
                                         MenuAction("Open", Icons.Outlined.FolderOpen) { folder?.let { onOpenFolder(it.id) } },
                                         MenuAction("Ungroup", Icons.Outlined.RemoveCircleOutline) { folder?.let { vm.dissolveFolder(it.id) } },
                                     )
-                                    menus.show(anchor, items) {
+                                    menus.show(anchor, items, extra = app?.let { sheet(it) }) {
                                         if (app != null) AppVisual(app, iconSize, vm.prefs.iconRoundness, showLabels)
                                         else if (folder != null) FolderVisual(vm, folder, iconSize, showLabels)
                                     }

@@ -8,7 +8,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +64,8 @@ class MenuRequest(
     val anchor: Rect,
     val items: List<MenuAction>,
     val preview: (@Composable () -> Unit)? = null,
+    /** Extra content above the actions (shortcuts, notifications); makes the card wider. */
+    val extra: (@Composable () -> Unit)? = null,
 )
 
 @Stable
@@ -65,8 +73,13 @@ class ContextMenuController {
     var request by mutableStateOf<MenuRequest?>(null)
         private set
 
-    fun show(anchor: Rect, items: List<MenuAction>, preview: (@Composable () -> Unit)? = null) {
-        if (items.isNotEmpty()) request = MenuRequest(anchor, items, preview)
+    fun show(
+        anchor: Rect,
+        items: List<MenuAction>,
+        extra: (@Composable () -> Unit)? = null,
+        preview: (@Composable () -> Unit)? = null,
+    ) {
+        if (items.isNotEmpty() || extra != null) request = MenuRequest(anchor, items, preview, extra)
     }
 
     fun dismiss() { request = null }
@@ -117,48 +130,67 @@ fun BoxScope.ContextMenuOverlay(controller: ContextMenuController) {
         ) { preview() }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val maxW = constraints.maxWidth.toFloat()
-        val maxH = constraints.maxHeight.toFloat()
-        val cardW = with(density) { MenuWidth.toPx() }
-        val cardH = with(density) { (RowHeight * r.items.size).toPx() }
-        val gap = with(density) { 10.dp.toPx() }
-        val margin = with(density) { 16.dp.toPx() }
-        val bottomLimit = maxH - with(density) { 72.dp.toPx() }
-        val below = r.anchor.bottom + gap + cardH < bottomLimit
-        val y = if (below) r.anchor.bottom + gap else (r.anchor.top - gap - cardH).coerceAtLeast(margin)
-        val x = (r.anchor.center.x - cardW / 2f).coerceIn(margin, (maxW - cardW - margin).coerceAtLeast(margin))
-        val originX = ((r.anchor.center.x - x) / cardW).coerceIn(0f, 1f)
-
-        Column(
-            Modifier
-                .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
-                .width(MenuWidth)
-                .graphicsLayer {
-                    alpha = t
-                    val s = 0.82f + 0.18f * t
-                    scaleX = s; scaleY = s
-                    transformOrigin = TransformOrigin(originX, if (below) 0f else 1f)
+    // The card: measured first, then placed below the item if it fits, otherwise above,
+    // otherwise as high as needed to stay on screen. Moves up for the keyboard when replying.
+    val wide = r.extra != null
+    val cardWidth = if (wide) 336.dp else MenuWidth
+    val origin = remember { floatArrayOf(0.5f, 0f) }
+    Layout(
+        modifier = Modifier.fillMaxSize().imePadding(),
+        content = {
+            Column(
+                Modifier
+                    .width(cardWidth)
+                    .graphicsLayer {
+                        alpha = t
+                        val s = 0.82f + 0.18f * t
+                        scaleX = s; scaleY = s
+                        transformOrigin = TransformOrigin(origin[0], origin[1])
+                    }
+                    .shadow(28.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black, spotColor = Color.Black)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xE6262629))
+                    .border(0.75.dp, Color(0x1AFFFFFF), RoundedCornerShape(22.dp)),
+            ) {
+                r.extra?.let { extra ->
+                    Column(Modifier.verticalScroll(rememberScrollState()).heightIn(max = 460.dp)) { extra() }
+                    if (r.items.isNotEmpty()) HorizontalDivider(color = Color(0x33FFFFFF), thickness = 6.dp)
                 }
-                .shadow(24.dp, RoundedCornerShape(18.dp), ambientColor = Color.Black, spotColor = Color.Black)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xEB2A2A2D)),
-        ) {
-            r.items.forEachIndexed { i, item ->
-                if (i > 0) HorizontalDivider(color = Color(0x26FFFFFF), thickness = 0.5.dp)
-                val color = if (item.destructive) Color(0xFFFF453A) else Color.White
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(RowHeight)
-                        .clickable { controller.dismiss(); item.run() }
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(item.label, color = color, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                    item.icon?.let { Icon(it, null, tint = color, modifier = Modifier.size(20.dp)) }
+                r.items.forEachIndexed { i, item ->
+                    if (i > 0) HorizontalDivider(color = Color(0x1FFFFFFF), thickness = 0.5.dp)
+                    val color = if (item.destructive) Color(0xFFFF453A) else Color.White
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(RowHeight)
+                            .clickable { controller.dismiss(); item.run() }
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(item.label, color = color, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        item.icon?.let { Icon(it, null, tint = color, modifier = Modifier.size(20.dp)) }
+                    }
                 }
             }
+        },
+    ) { measurables, constraints ->
+        val maxW = constraints.maxWidth
+        val maxH = constraints.maxHeight
+        val margin = 16.dp.roundToPx()
+        val gap = 10.dp.roundToPx()
+        val p = measurables.first().measure(
+            Constraints(maxWidth = (maxW - 2 * margin).coerceAtLeast(0), maxHeight = (maxH - 2 * margin).coerceAtLeast(0)),
+        )
+        val below = r.anchor.bottom + gap + p.height <= maxH - margin
+        val above = r.anchor.top - gap - p.height >= margin
+        val y = when {
+            below -> r.anchor.bottom.roundToInt() + gap
+            above -> r.anchor.top.roundToInt() - gap - p.height
+            else -> (maxH - margin - p.height).coerceAtLeast(margin)
         }
+        val x = (r.anchor.center.x - p.width / 2f).roundToInt().coerceIn(margin, (maxW - p.width - margin).coerceAtLeast(margin))
+        origin[0] = ((r.anchor.center.x - x) / p.width.coerceAtLeast(1)).coerceIn(0f, 1f)
+        origin[1] = if (below) 0f else 1f
+        layout(maxW, maxH) { p.place(x, y) }
     }
 }

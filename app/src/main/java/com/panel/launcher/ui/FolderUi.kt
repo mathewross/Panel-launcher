@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -73,11 +74,15 @@ import com.panel.launcher.data.Folder
 fun FolderVisual(vm: LauncherViewModel, folder: Folder, iconSize: Dp, showLabel: Boolean) {
     val p = LocalTiles.current
     val apps = vm.folderApps(folder).take(4)
+    // A folder glows if anything inside it has notifications.
+    val badges = vm.folderApps(folder).mapNotNull { vm.badgeFor(it) }
+    val glow = badges.firstOrNull()?.color
     val shape = LocalIconLook.current.shape
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
     ) {
+        Box {
         val record = LocalIconBounds.current
         Box(
             Modifier
@@ -87,6 +92,7 @@ fun FolderVisual(vm: LauncherViewModel, folder: Folder, iconSize: Dp, showLabel:
                     record(com.panel.launcher.FOLDER_PREFIX + folder.id,
                         android.graphics.Rect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt()))
                 }
+                .then(if (glow != null) Modifier.notificationGlow(glow) else Modifier)
                 .surface(shape, p),
             contentAlignment = Alignment.Center,
         ) {
@@ -97,6 +103,13 @@ fun FolderVisual(vm: LauncherViewModel, folder: Folder, iconSize: Dp, showLabel:
                         row.forEach { AppIcon(it, mini, vm.prefs.iconRoundness) }
                     }
                 }
+            }
+        }
+            if (badges.isNotEmpty()) {
+                CountPill(
+                    badges.sumOf { it.count }, badges.first().color,
+                    Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-4).dp),
+                )
             }
         }
         if (showLabel) {

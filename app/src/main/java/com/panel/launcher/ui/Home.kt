@@ -336,6 +336,8 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
         LocalWallpaperText provides if (light) TextOnLightWallpaper else TextOnDarkWallpaper,
         LocalIconBounds provides { key, rect -> vm.iconBounds[key] = rect },
         LocalGlass provides vm.glass,
+        LocalBadges provides { app -> vm.badgeFor(app) },
+        LocalAppSheet provides { app -> { AppSheetExtras(vm, app) } },
         LocalIconLook provides IconLook(
             iconShapeFor(vm.prefs.iconShape, vm.prefs.iconRoundness),
             pastelFilter(vm.prefs.iconPastel / 100f),

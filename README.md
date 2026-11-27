@@ -141,6 +141,18 @@ photo chosen inside Panel. It can't read the system wallpaper without broad stor
 *Also use as phone wallpaper* puts the same photo on your lock screen, but the lock screen
 clock itself belongs to Android and can't be changed by an app.
 
+### App sheet & notifications (Niagara-style)
+
+- **Long-press any app**, or in the app panel **swipe an app toward the middle of the screen**, to
+  open its sheet over the blur: its notifications (tap to open, **Reply** inline, × to clear),
+  its own **shortcuts** (e.g. WhatsApp chats, Maps "Navigate home"), then the usual actions.
+- **Glow & whisper**: an app with something new glows softly in its own colour, and its name
+  turns into who it's from ("Sarah · 2"). Without labels, or in the dock, a small count pill
+  shows instead. Folders glow if anything inside does. App panel rows show a one-line preview.
+- Shortcuts need no permission. Notifications need **notification access** (Settings ›
+  Notifications), the same opt-in as full music controls. It's off by default, because some
+  banking apps dislike it.
+
 ### Music (Spotify and others)
 
 While music is playing, the Up next box gets an **Up next | ♫ Playing** toggle and switches to
