@@ -250,6 +250,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
                     addAction(android.content.Intent.ACTION_BATTERY_CHANGED)
                     addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION)
                     addAction(android.media.AudioManager.RINGER_MODE_CHANGED_ACTION)
+                    addAction(android.app.NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
                     @Suppress("DEPRECATION")
                     addAction(android.net.wifi.WifiManager.RSSI_CHANGED_ACTION)
                     @Suppress("DEPRECATION")
@@ -279,29 +280,57 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Ring → Vibrate → Silent. Ring/vibrate need no permission. On some phones Silent counts as
-     * a Do Not Disturb change, which needs "Do Not Disturb access"; then we skip back to Ring.
+     * Ring → Vibrate → Silent (or Do Not Disturb) → Ring.
+     *
+     * Ring and vibrate need no permission. On Pixels, when an app asks for Silent, Android turns
+     * on Do Not Disturb instead of the volume panel's "Mute" (only the system can pick that).
+     * So we first try a plain ringer mute; if the phone doesn't allow it, the third step is
+     * honestly Do Not Disturb (needs Modes / Do Not Disturb access, which apps with
+     * notification access get automatically).
      */
     fun cycleRinger() {
         val am = ctx.getSystemService(android.media.AudioManager::class.java) ?: return
-        val next = when (am.ringerMode) {
-            android.media.AudioManager.RINGER_MODE_NORMAL -> android.media.AudioManager.RINGER_MODE_VIBRATE
-            android.media.AudioManager.RINGER_MODE_VIBRATE -> android.media.AudioManager.RINGER_MODE_SILENT
-            else -> android.media.AudioManager.RINGER_MODE_NORMAL
+        val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
+        val dndOn = nm.currentInterruptionFilter != android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+        val hasAccess = nm.isNotificationPolicyAccessGranted
+        fun dndOff() = runCatching {
+            if (hasAccess) nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_ALL)
         }
-        val ok = runCatching { am.ringerMode = next }.isSuccess && am.ringerMode == next
-        if (!ok) {
-            runCatching { am.ringerMode = android.media.AudioManager.RINGER_MODE_NORMAL }
-            if (next == android.media.AudioManager.RINGER_MODE_SILENT) {
-                toast("Silent needs Do Not Disturb access — press and hold the bell to allow it")
+        val message: String = when {
+            // Silent / DND → Ring
+            dndOn || am.ringerMode == android.media.AudioManager.RINGER_MODE_SILENT -> {
+                dndOff()
+                runCatching { am.adjustStreamVolume(android.media.AudioManager.STREAM_RING, android.media.AudioManager.ADJUST_UNMUTE, 0) }
+                runCatching { am.ringerMode = android.media.AudioManager.RINGER_MODE_NORMAL }
+                if (nm.currentInterruptionFilter != android.app.NotificationManager.INTERRUPTION_FILTER_ALL)
+                    "Do Not Disturb is on from another mode — turn it off in the shade"
+                else "Ring"
             }
-        } else {
-            toast(when (next) {
-                android.media.AudioManager.RINGER_MODE_VIBRATE -> "Vibrate"
-                android.media.AudioManager.RINGER_MODE_SILENT -> "Silent"
-                else -> "Ring"
-            })
+            // Ring → Vibrate
+            am.ringerMode == android.media.AudioManager.RINGER_MODE_NORMAL -> {
+                runCatching { am.ringerMode = android.media.AudioManager.RINGER_MODE_VIBRATE }
+                "Vibrate"
+            }
+            // Vibrate → true Silent if the phone allows it, otherwise Do Not Disturb
+            else -> {
+                runCatching { am.adjustStreamVolume(android.media.AudioManager.STREAM_RING, android.media.AudioManager.ADJUST_MUTE, 0) }
+                val trulySilent = am.ringerMode == android.media.AudioManager.RINGER_MODE_SILENT &&
+                    nm.currentInterruptionFilter == android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+                when {
+                    trulySilent -> "Silent"
+                    hasAccess -> {
+                        runCatching { am.adjustStreamVolume(android.media.AudioManager.STREAM_RING, android.media.AudioManager.ADJUST_UNMUTE, 0) }
+                        runCatching { nm.setInterruptionFilter(android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY) }
+                        "Do Not Disturb on (your phone uses this for silent)"
+                    }
+                    else -> {
+                        runCatching { am.ringerMode = android.media.AudioManager.RINGER_MODE_NORMAL }
+                        "Silent needs Do Not Disturb (Modes) access — press and hold the bell to allow it"
+                    }
+                }
+            }
         }
+        toast(message)
         status = com.panel.launcher.data.DeviceStatus.read(ctx)
     }
 

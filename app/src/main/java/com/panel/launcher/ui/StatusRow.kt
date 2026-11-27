@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.DoNotDisturbOn
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material3.Icon
@@ -51,7 +52,7 @@ fun StatusIcons(
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (onRinger != null) {
-            val icon = when (status.ringer) {
+            val icon = if (status.dnd) Icons.Outlined.DoNotDisturbOn else when (status.ringer) {
                 android.media.AudioManager.RINGER_MODE_VIBRATE -> Icons.Outlined.Vibration
                 android.media.AudioManager.RINGER_MODE_SILENT -> Icons.Outlined.NotificationsOff
                 else -> Icons.Outlined.NotificationsActive

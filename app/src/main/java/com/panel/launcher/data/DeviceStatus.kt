@@ -18,6 +18,8 @@ data class DeviceStatus(
     val cell: Int = -1,
     /** AudioManager.RINGER_MODE_NORMAL / VIBRATE / SILENT */
     val ringer: Int = android.media.AudioManager.RINGER_MODE_NORMAL,
+    /** Do Not Disturb (a "mode" on Android 15) is on. */
+    val dnd: Boolean = false,
 ) {
     companion object {
         /** Wi-Fi bars 0…4 on the phone's own scale (the same one the status bar uses). */
@@ -62,7 +64,11 @@ data class DeviceStatus(
 
             val ringer = runCatching { ctx.getSystemService(android.media.AudioManager::class.java).ringerMode }
                 .getOrDefault(android.media.AudioManager.RINGER_MODE_NORMAL)
-            return DeviceStatus(level, plugged, wifi, cell, ringer)
+            val dnd = runCatching {
+                ctx.getSystemService(android.app.NotificationManager::class.java).currentInterruptionFilter !=
+                    android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+            }.getOrDefault(false)
+            return DeviceStatus(level, plugged, wifi, cell, ringer, dnd)
         }
     }
 }

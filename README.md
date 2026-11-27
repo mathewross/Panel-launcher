@@ -132,9 +132,11 @@ of app panel*). It counts launches made through Panel, so no usage-access permis
   move it, or remove it. The first time, Android asks you to allow Panel to create widgets.
 - **Bottom bar**: *Panel* (settings · search · apps), *Google search* (the Google app's own
   search bar widget, with AI Mode, Lens and voice as Google provides them), or *Hidden*.
-- **Ring / vibrate / silent**: tap the bell in the status row to cycle. Ring and vibrate need
-  no permission. If your phone treats Silent as Do Not Disturb, press and hold the bell to
-  allow *Do Not Disturb access* (a light permission banks don't look at).
+- **Ring / vibrate / silent**: tap the bell in the status row to cycle Ring → Vibrate → Silent.
+  On Pixels, Android turns an app's Silent request into **Do Not Disturb** (only the system
+  volume panel can choose true "Mute"), so Panel tries a plain mute first and otherwise
+  switches Do Not Disturb on and shows ⊖. Tapping again goes back to Ring. Do Not Disturb
+  needs *Modes access*, which apps with notification access get automatically.
 - **Battery, Wi-Fi & signal**: a small status row in the time box, under the Glance date,
   or above the big clock, so you can hide the system status bar on the home screen.
 - **Glance style**: clock size, weight, font, left or centred, and which details and how
