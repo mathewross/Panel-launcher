@@ -170,11 +170,20 @@ private fun UpNextBox(vm: LauncherViewModel, a: HeaderActions) {
                 }
             }
             val list = upNext(vm.upNextEvents, 2)
+            val events: @Composable () -> Unit = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    when {
+                        !vm.hasCalendar -> Text("Tap to show your calendar events here", color = p.fg, fontSize = 14.sp)
+                        list.isEmpty() -> Text("Nothing coming up", color = p.subtle, fontSize = 14.sp)
+                        else -> list.forEach { e -> EventLine(e, vm.now, p.fg, p.subtle) { a.event(e) } }
+                    }
+                }
+            }
             when {
+                // Both views measured, box sized to the taller one, so toggling never moves the grid.
+                music != null && vm.prefs.showUpNext -> SameHeight(showSecond = showMusic, first = events) { MusicPlayer(vm, music) }
                 showMusic && music != null -> MusicPlayer(vm, music)
-                !vm.hasCalendar -> Text("Tap to show your calendar events here", color = p.fg, fontSize = 14.sp)
-                list.isEmpty() -> Text("Nothing coming up", color = p.subtle, fontSize = 14.sp)
-                else -> list.forEach { e -> EventLine(e, vm.now, p.fg, p.subtle) { a.event(e) } }
+                else -> events()
             }
         }
     }
@@ -259,6 +268,23 @@ private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modi
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Lays out [first] and [second] at the same height (the taller of the two) and shows one,
+ * so switching between them doesn't change the size of the box.
+ */
+@Composable
+private fun SameHeight(showSecond: Boolean, first: @Composable () -> Unit, second: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(contents = listOf(first, second)) { (a, b), constraints ->
+        val loose = constraints.copy(minHeight = 0)
+        val pa = a.map { it.measure(loose) }
+        val pb = b.map { it.measure(loose) }
+        val h = maxOf(pa.maxOfOrNull { it.height } ?: 0, pb.maxOfOrNull { it.height } ?: 0)
+        layout(constraints.maxWidth, h.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            (if (showSecond) pb else pa).forEach { it.place(0, 0) }
         }
     }
 }
