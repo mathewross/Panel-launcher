@@ -122,6 +122,8 @@ fun BoxScope.Sidebar(
     progress: () -> Float,
     vm: LauncherViewModel,
     focusSearch: Boolean,
+    /** 0…1: blurs the panel while a long-press menu / app sheet is open on top of it. */
+    blur: () -> Float,
     onAddToFolder: (AppEntry) -> Unit,
     drag: Modifier,
     onClose: () -> Unit,
@@ -145,6 +147,10 @@ fun BoxScope.Sidebar(
             .align(if (left) Alignment.CenterStart else Alignment.CenterEnd)
             .graphicsLayer {
                 translationX = (1f - progress()) * (size.width + 40f) * (if (left) -1f else 1f)
+                val b = blur()
+                renderEffect = if (android.os.Build.VERSION.SDK_INT >= 31 && b > 0.01f) {
+                    androidx.compose.ui.graphics.BlurEffect(36f * b, 36f * b, androidx.compose.ui.graphics.TileMode.Decal)
+                } else null
             }
             .then(drag),
     ) {

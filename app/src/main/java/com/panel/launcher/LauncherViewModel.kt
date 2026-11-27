@@ -615,7 +615,10 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var resumeTick by mutableStateOf(0); private set
     var resumed = false; private set
 
-    fun onPause() { resumed = false }
+    /** Bumped whenever Panel goes into the background (an app opened, etc.). */
+    var pauseTick by mutableStateOf(0); private set
+
+    fun onPause() { resumed = false; pauseTick++ }
 
     fun launch(app: AppEntry) {
         val bounds = iconBounds[app.key]

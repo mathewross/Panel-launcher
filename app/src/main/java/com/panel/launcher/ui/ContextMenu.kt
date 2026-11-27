@@ -149,7 +149,7 @@ fun BoxScope.ContextMenuOverlay(controller: ContextMenuController) {
                     }
                     .shadow(28.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black, spotColor = Color.Black)
                     .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xE6262629))
+                    .background(Color(0xF5242427))
                     .border(0.75.dp, Color(0x1AFFFFFF), RoundedCornerShape(22.dp)),
             ) {
                 r.extra?.let { extra ->

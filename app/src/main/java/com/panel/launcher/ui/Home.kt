@@ -281,6 +281,16 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     }
 
     // Pressing Home while already home closes whatever is open.
+    // Leaving Panel (opening an app, notification or shortcut) closes the panel, folders, agenda
+    // and menus, so you always come back to a clean home screen.
+    LaunchedEffect(vm.pauseTick) {
+        if (vm.pauseTick == 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(250)
+        if (vm.resumed) return@LaunchedEffect
+        panel.snapTo(0f); focusSearch = false; agenda = false; openFolder = null
+        menuController.dismiss()
+    }
+
     LaunchedEffect(homePresses) {
         if (homePresses > 0) {
             panel.snapTo(0f); focusSearch = false; settings = false; agenda = false; openFolder = null
@@ -455,6 +465,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
 
             Sidebar(
                 progress = { panel.value }, vm = vm, focusSearch = focusSearch,
+                blur = { menuT },
                 onAddToFolder = { folderPickFor = it },
                 drag = panelDragModifier,
                 onClose = closePanel,
