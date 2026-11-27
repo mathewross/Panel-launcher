@@ -36,9 +36,10 @@ data class TilePalette(
 fun paletteFor(style: TileStyle, lightWallpaper: Boolean) = when (style) {
     // Glass over a light wallpaper: frosted white with dark text.
     TileStyle.GLASS -> if (lightWallpaper) TilePalette(
+        // A soft grey frost with a darker hairline, so boxes stay visible even on white photos.
         bg = Color(0x1A000000),
-        fg = Color(0xFF1C1C1E), subtle = Color(0xB31C1C1E), border = Color(0x33FFFFFF),
-        glass = true, light = true, glassTint = Color(0x59FFFFFF),
+        fg = Color(0xFF1C1C1E), subtle = Color(0xB31C1C1E), border = Color(0x24000000),
+        glass = true, light = true, glassTint = Color(0x1C000000),
     ) else TilePalette(
         bg = Color(0x3DFFFFFF),
         fg = Color.White, subtle = Color.White.copy(alpha = 0.8f), border = Color.White.copy(alpha = 0.22f),

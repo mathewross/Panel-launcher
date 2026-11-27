@@ -182,31 +182,42 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     // Cascade on return: header, then grid, then dock/search arrive one after another.
     val entrance = remember { List(3) { Animatable(1f) } }
     val entranceShift = with(density) { 70.dp.toPx() }
-    LaunchedEffect(vm.launchTick) {
-        if (vm.launchTick == 0 || !vm.prefs.openAnimation) return@LaunchedEffect
-        // The home screen pushes away as the app grows out of its icon.
-        launch { homeScale.animateTo(1.18f, tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
-        homeAlpha.animateTo(0f, tween(200))
-        // If the app didn't take over the screen (e.g. it failed to open), come back.
-        kotlinx.coroutines.delay(900)
-        if (vm.resumed) {
-            launch { homeAlpha.animateTo(1f, tween(200)) }
-            homeScale.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 300f))
-        }
-    }
-    LaunchedEffect(vm.resumeTick) {
-        if (homeAlpha.value < 1f) {
-            homeScale.snapTo(0.82f)
-            entrance.forEach { it.snapTo(0f) }
-            launch { homeAlpha.animateTo(1f, tween(260)) }
+    // Animations run in their own scope so one can never cancel another halfway and leave the
+    // home screen stuck faded (each animateTo simply takes over from the previous one).
+    val animScope = rememberCoroutineScope()
+    fun restoreHome(cascade: Boolean) {
+        if (cascade) {
+            animScope.launch { homeScale.snapTo(0.82f); homeScale.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 210f)) }
+            animScope.launch { homeAlpha.animateTo(1f, tween(260)) }
             entrance.forEachIndexed { i, e ->
-                launch {
+                animScope.launch {
+                    e.snapTo(0f)
                     kotlinx.coroutines.delay(40L + i * 60L)
                     e.animateTo(1f, spring(dampingRatio = 0.68f, stiffness = 260f))
                 }
             }
-            homeScale.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 210f))
+        } else {
+            animScope.launch { homeScale.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 300f)) }
+            animScope.launch { homeAlpha.animateTo(1f, tween(200)) }
+            entrance.forEach { e -> animScope.launch { e.animateTo(1f, tween(200)) } }
         }
+    }
+    val homeAtRest = { homeAlpha.targetValue == 1f && homeScale.targetValue == 1f && entrance.all { it.targetValue == 1f } }
+    LaunchedEffect(vm.launchTick) {
+        if (vm.launchTick == 0 || !vm.prefs.openAnimation) return@LaunchedEffect
+        // The home screen pushes away as the app grows out of its icon.
+        animScope.launch { homeScale.animateTo(1.18f, tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+        animScope.launch { homeAlpha.animateTo(0f, tween(200)) }
+        // If nothing took over the screen (e.g. the app or notification didn't open), come back.
+        kotlinx.coroutines.delay(900)
+        if (vm.resumed) restoreHome(cascade = false)
+    }
+    LaunchedEffect(vm.resumeTick) {
+        if (homeAlpha.value < 1f) restoreHome(cascade = vm.prefs.openAnimation)
+        else if (!homeAtRest()) restoreHome(cascade = false)
+        // Safety net: whatever happened, be fully back to normal shortly after returning.
+        kotlinx.coroutines.delay(1500)
+        if (vm.resumed && !homeAtRest()) restoreHome(cascade = false)
     }
     val entranceLayer: androidx.compose.ui.graphics.GraphicsLayerScope.(Int) -> Unit = { i ->
         val e = entrance[i].value
@@ -271,7 +282,11 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
 
     // Pressing Home while already home closes whatever is open.
     LaunchedEffect(homePresses) {
-        if (homePresses > 0) { panel.snapTo(0f); focusSearch = false; settings = false; agenda = false; openFolder = null }
+        if (homePresses > 0) {
+            panel.snapTo(0f); focusSearch = false; settings = false; agenda = false; openFolder = null
+            menuController.dismiss()
+            if (!homeAtRest()) restoreHome(cascade = false)
+        }
     }
     BackHandler(enabled = true) { /* the home screen itself has nowhere to go back to */ }
     BackHandler(enabled = panelOpen || settings || openFolder != null) {
