@@ -241,6 +241,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshStatus() {
         if (!prefs.showStatus) return
+        listenForSignal()
         if (!statusListening) {
             statusListening = true
             androidx.core.content.ContextCompat.registerReceiver(
@@ -249,11 +250,32 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
                     addAction(android.content.Intent.ACTION_BATTERY_CHANGED)
                     addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION)
                     addAction(android.media.AudioManager.RINGER_MODE_CHANGED_ACTION)
+                    @Suppress("DEPRECATION")
+                    addAction(android.net.wifi.WifiManager.RSSI_CHANGED_ACTION)
+                    @Suppress("DEPRECATION")
+                    addAction(android.net.wifi.WifiManager.NETWORK_STATE_CHANGED_ACTION)
                 },
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
             )
         }
         status = com.panel.launcher.data.DeviceStatus.read(ctx)
+    }
+
+    // Live mobile-signal updates (Android 12+), so the bars match the status bar. No permission.
+    private var signalCallback: Any? = null
+
+    private fun listenForSignal() {
+        if (signalCallback != null || android.os.Build.VERSION.SDK_INT < 31) return
+        runCatching {
+            val tm = ctx.getSystemService(android.telephony.TelephonyManager::class.java)
+            val cb = object : android.telephony.TelephonyCallback(), android.telephony.TelephonyCallback.SignalStrengthsListener {
+                override fun onSignalStrengthsChanged(signalStrength: android.telephony.SignalStrength) {
+                    if (prefs.showStatus) status = status.copy(cell = signalStrength.level.coerceIn(0, 4))
+                }
+            }
+            tm.registerTelephonyCallback(ctx.mainExecutor, cb)
+            signalCallback = cb
+        }
     }
 
     /**

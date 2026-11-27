@@ -20,6 +20,24 @@ data class DeviceStatus(
     val ringer: Int = android.media.AudioManager.RINGER_MODE_NORMAL,
 ) {
     companion object {
+        /** Wi-Fi bars 0…4 on the phone's own scale (the same one the status bar uses). */
+        private fun wifiLevel(ctx: Context, caps: NetworkCapabilities): Int {
+            val wm = ctx.applicationContext.getSystemService(WifiManager::class.java)
+            @Suppress("DEPRECATION")
+            var rssi = wm?.connectionInfo?.rssi ?: Int.MIN_VALUE
+            if (rssi <= -127 || rssi == Int.MIN_VALUE) {
+                rssi = if (Build.VERSION.SDK_INT >= 29) caps.signalStrength else Int.MIN_VALUE
+            }
+            if (rssi == Int.MIN_VALUE || rssi <= -127) return 4
+            return if (Build.VERSION.SDK_INT >= 30 && wm != null) {
+                val max = wm.maxSignalLevel.coerceAtLeast(1)
+                (wm.calculateSignalLevel(rssi) * 4f / max).toInt().coerceIn(0, 4)
+            } else {
+                @Suppress("DEPRECATION")
+                WifiManager.calculateSignalLevel(rssi, 5).coerceIn(0, 4)
+            }
+        }
+
         /** Reads everything at once. No permissions beyond the normal network-state one. */
         fun read(ctx: Context): DeviceStatus {
             val bat = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -33,11 +51,7 @@ data class DeviceStatus(
             val wifi = runCatching {
                 val cm = ctx.getSystemService(ConnectivityManager::class.java)
                 val caps = cm.getNetworkCapabilities(cm.activeNetwork)
-                if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                    val rssi = if (Build.VERSION.SDK_INT >= 29) caps.signalStrength else Int.MIN_VALUE
-                    @Suppress("DEPRECATION")
-                    if (rssi == Int.MIN_VALUE) 4 else WifiManager.calculateSignalLevel(rssi, 5).coerceIn(0, 4)
-                } else -1
+                if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) wifiLevel(ctx, caps) else -1
             }.getOrDefault(-1)
 
             val cell = runCatching {

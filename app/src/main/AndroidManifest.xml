@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />    <!-- Wi-Fi bars in the status row -->
     <!-- Only used if you allow "Do Not Disturb access", for the Silent setting of the bell -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" /> <!-- Wi-Fi level in the status row -->
     <!-- Optional, off unless you grant it: lets glass blur your system wallpaper (Android only

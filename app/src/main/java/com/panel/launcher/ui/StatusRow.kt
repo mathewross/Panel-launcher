@@ -104,20 +104,21 @@ private fun SignalBars(level: Int, color: Color, size: Dp) {
 
 @Composable
 private fun WifiArcs(level: Int, color: Color, size: Dp) {
-    Canvas(Modifier.size(size * 1.35f, size)) {
+    Canvas(Modifier.size(size * 1.5f, size)) {
+        // A fan of arcs centred on the bottom middle; the largest just touches the top, so nothing is clipped.
         val cx = this.size.width / 2
         val bottom = this.size.height
-        val stroke = this.size.height * 0.16f
-        // 3 arcs + a dot; level 0…4 maps onto them.
-        val lit = when (level) { 4 -> 4; 3 -> 3; 2 -> 2; 1 -> 1; else -> 0 }
-        drawCircle(color.copy(alpha = if (lit >= 1) 1f else 0.3f), radius = stroke * 0.7f, center = Offset(cx, bottom - stroke * 0.7f))
+        val stroke = this.size.height * 0.15f
+        val maxR = this.size.height - stroke / 2
+        // level 0…4 → dot + up to 3 arcs lit
+        drawCircle(color, radius = stroke * 0.75f, center = Offset(cx, bottom - stroke * 0.75f))
         for (i in 1..3) {
-            val r = this.size.height * (0.3f + 0.3f * i)
+            val r = maxR * (0.25f + 0.25f * i)
             drawArc(
-                color.copy(alpha = if (lit >= i + 1) 1f else 0.3f),
+                color.copy(alpha = if (level >= i + 1) 1f else 0.3f),
                 startAngle = 225f, sweepAngle = 90f, useCenter = false,
                 topLeft = Offset(cx - r, bottom - r), size = Size(r * 2, r * 2),
-                style = Stroke(width = stroke),
+                style = Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
             )
         }
     }
