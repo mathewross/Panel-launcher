@@ -122,6 +122,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     var openFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var folderPickFor by remember { mutableStateOf<AppEntry?>(null) }
     var widgetPicker by rememberSaveable { mutableStateOf(false) }
+    var railDockTop by remember { mutableStateOf(0.dp) }
 
     // ---- App panel: 0 = closed, 1 = open. Follows your finger while you swipe. ----
     val scope = rememberCoroutineScope()
@@ -439,7 +440,10 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                             Spacer(Modifier.width(12.dp))
                         }
                         Column(Modifier.weight(1f)) {
-                            Header(vm, actions, Modifier.graphicsLayer { entranceLayer(0) })
+                            // Glance clock may stretch over the empty space above a right-hand dock.
+                            val clockLine = with(density) { (vm.prefs.glanceClockSize * 1.1f).sp.toDp() } + 8.dp
+                            val clockExtra = if (dockPos == DockPosition.RIGHT && railDockTop > clockLine) 80.dp else 0.dp
+                            Header(vm, actions, Modifier.graphicsLayer { entranceLayer(0) }, clockExtra)
                             if (vm.widgets.isNotEmpty()) {
                                 Spacer(Modifier.height(12.dp))
                                 WidgetStack(vm, Modifier.graphicsLayer { entranceLayer(1) })
@@ -457,7 +461,9 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                         }
                         if (dockPos == DockPosition.RIGHT) {
                             Spacer(Modifier.width(12.dp))
-                            Box(Modifier.graphicsLayer { entranceLayer(2) }) { SideRail(vm, actions, boxSize) }
+                            Box(Modifier.graphicsLayer { entranceLayer(2) }) {
+                                SideRail(vm, actions, boxSize) { top -> if (railDockTop != top) railDockTop = top }
+                            }
                         }
                     }
                 }
@@ -635,7 +641,7 @@ fun homeMenu(vm: LauncherViewModel, app: AppEntry, inDock: Boolean): List<MenuAc
  * dock is moved lower, the weather pill grows into the space, up to the size of the boxes.
  */
 @Composable
-private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?) {
+private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?, onDockTop: (Dp) -> Unit = {}) {
     val p = LocalTiles.current
     val pill = RoundedCornerShape(36.dp)
     val density = LocalDensity.current
@@ -654,6 +660,7 @@ private fun SideRail(vm: LauncherViewModel, actions: HeaderActions, boxSize: Dp?
         val minTop = compact + gap
         val maxTop = (maxHeight - dockH).coerceAtLeast(minTop)
         val dockTop = minTop + (maxTop - minTop) * f
+        SideEffect { onDockTop(if (showWeatherPill) 0.dp else dockTop) }
         val target = if (boxSize != null) (dockTop - gap).coerceIn(compact, maxOf(compact, boxSize)) else compact
         val pillH by animateDpAsState(target, label = "weatherPill")
         val tall = pillH >= 150.dp

@@ -27,6 +27,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,10 +51,16 @@ class HeaderActions(
 )
 
 @Composable
-fun Header(vm: LauncherViewModel, actions: HeaderActions, modifier: Modifier = Modifier) {
+fun Header(
+    vm: LauncherViewModel,
+    actions: HeaderActions,
+    modifier: Modifier = Modifier,
+    /** Free space to the right of the header the Glance clock may extend into (above the side dock). */
+    clockExtra: Dp = 0.dp,
+) {
     when (vm.prefs.headerStyle) {
         HeaderStyle.BOXES -> BoxesHeader(vm, actions, modifier)
-        HeaderStyle.GLANCE -> GlanceHeader(vm, actions, modifier)
+        HeaderStyle.GLANCE -> GlanceHeader(vm, actions, modifier, clockExtra)
         HeaderStyle.CLOCK -> Unit // drawn full-width by HomeScreen, between wallpaper and subject
     }
 }
@@ -225,7 +234,7 @@ private fun EventLine(e: CalEvent, now: Long, fg: Color, subtle: Color, onClick:
 // ---------------------------------------------------------------- Niagara-style glance
 
 @Composable
-private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier) {
+private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modifier, clockExtra: Dp = 0.dp) {
     val ctx = LocalContext.current
     val now = vm.now
     val p = vm.prefs
@@ -237,13 +246,39 @@ private fun GlanceHeader(vm: LauncherViewModel, a: HeaderActions, modifier: Modi
         modifier.fillMaxWidth().padding(horizontal = 8.dp),
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-        Text(
-            Fmt.time(ctx, now),
-            style = WallpaperText, fontSize = size.sp, fontFamily = family,
-            fontWeight = FontWeight(p.glanceWeight.coerceIn(100, 900)),
-            letterSpacing = (-0.035f * size).sp, lineHeight = (size * 1.05f).sp, maxLines = 1, softWrap = false,
-            modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = a.clock),
-        )
+        // The clock may use free space above the side dock (left-aligned only), and otherwise
+        // shrinks so it's never cut off, whatever size or font is chosen.
+        val extra = if (centered) 0.dp else clockExtra
+        val measurer = rememberTextMeasurer()
+        val time = Fmt.time(ctx, now)
+        val weight = FontWeight(p.glanceWeight.coerceIn(100, 900))
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val availPx = constraints.maxWidth + with(LocalDensity.current) { extra.roundToPx() }
+            var fs = size.toFloat()
+            while (fs > 24f) {
+                val w = measurer.measure(
+                    time,
+                    TextStyle(fontSize = fs.sp, fontFamily = family, fontWeight = weight, letterSpacing = (-0.035f * fs).sp),
+                    maxLines = 1, softWrap = false,
+                ).size.width
+                if (w <= availPx) break
+                fs -= 2f
+            }
+            val extraPx = with(LocalDensity.current) { extra.roundToPx() }
+            Text(
+                time,
+                style = WallpaperText, fontSize = fs.sp, fontFamily = family, fontWeight = weight,
+                letterSpacing = (-0.035f * fs).sp, lineHeight = (fs * 1.05f).sp, maxLines = 1, softWrap = false,
+                modifier = Modifier
+                    .align(if (centered) Alignment.Center else Alignment.CenterStart)
+                    .layout { m, c ->
+                        // Measure with the extra room, but report only our own width to the layout.
+                        val pl = m.measure(c.copy(maxWidth = c.maxWidth + extraPx))
+                        layout(minOf(pl.width, c.maxWidth), pl.height) { pl.place(0, 0) }
+                    }
+                    .clickable(onClick = a.clock),
+            )
+        }
         if (p.glanceShowDate || p.glanceShowWeather) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (p.glanceShowDate) {
