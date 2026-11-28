@@ -67,6 +67,8 @@ class Prefs(context: Context) {
     // Bottom bar: "panel" (settings · search · apps), "google" (Google's search widget) or "hidden"
     var bottomBar by string("bottom_bar", "panel")
     var bottomWidgetId by int("bottom_widget_id", -1)
+    /** What the bar's Search does: "google" (Google search) or "apps" (search your apps). */
+    var searchTarget by string("search_target", "google")
     /** Home widgets, top to bottom, stored as "appWidgetId:heightDp". */
     var widgets: List<String> by list("widgets")
 

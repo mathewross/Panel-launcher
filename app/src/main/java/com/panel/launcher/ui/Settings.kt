@@ -171,6 +171,10 @@ private fun SettingsBody(
             },
             color = Subtle, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
         )
+        if (p.bottomBar == "panel") {
+            Divider()
+            ChoiceRow("Search opens", listOf("Google" to "google", "My apps" to "apps"), p.searchTarget) { p.searchTarget = it }
+        }
         Divider()
         SwitchRow("Show battery, Wi-Fi & signal", p.showStatus) { p.showStatus = it; vm.refreshStatus() }
         Divider()

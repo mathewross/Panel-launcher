@@ -130,7 +130,8 @@ of app panel*). It counts launches made through Panel, so no usage-access permis
 - **Widgets**: long-press empty space › *Widgets* to browse every widget your apps offer
   (with previews). They stack under the boxes. Long-press one to make it taller or shorter,
   move it, or remove it. The first time, Android asks you to allow Panel to create widgets.
-- **Bottom bar**: *Panel* (settings · search · apps), *Google search* (the Google app's own
+- **Bottom bar**: *Panel* (⚙ settings, hold for phone settings · **Google** search · 🎤 voice
+  search · apps; Search can be switched to search your apps instead), *Google search* (the Google app's own
   search bar widget, with AI Mode, Lens and voice as Google provides them), or *Hidden*.
 - **Ring / vibrate / silent**: tap the bell in the status row to cycle Ring → Vibrate → Silent.
   On Pixels, Android turns an app's Silent request into **Do Not Disturb** (only the system

@@ -459,6 +459,35 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         } else prefs.bottomBar = mode
     }
 
+    // ---------- Google search & phone settings ----------
+
+    private val googleApp = "com.google.android.googlequicksearchbox"
+
+    /** Google's own search screen (the one the Pixel launcher's bar opens), with the keyboard up. */
+    fun openGoogleSearch(context: Context) {
+        val tries = listOf(
+            android.content.Intent("android.search.action.GLOBAL_SEARCH").setPackage(googleApp),
+            android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH).setPackage(googleApp),
+            android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH),
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com")),
+        )
+        if (tries.none { start(context, it) }) toast("Couldn't open Google search")
+        else launchTick++
+    }
+
+    fun openVoiceSearch(context: Context) {
+        val tries = listOf(
+            android.content.Intent(android.speech.RecognizerIntent.ACTION_WEB_SEARCH).setPackage(googleApp),
+            android.content.Intent(android.speech.RecognizerIntent.ACTION_WEB_SEARCH),
+            android.content.Intent("android.intent.action.VOICE_COMMAND"),
+        )
+        if (tries.none { start(context, it) }) toast("Voice search isn't available")
+    }
+
+    fun openPhoneSettings(context: Context) {
+        start(context, android.content.Intent(android.provider.Settings.ACTION_SETTINGS))
+    }
+
     fun openMusicApp() {
         val pkg = nowPlaying?.packageName ?: return
         apps.firstOrNull { it.packageName == pkg }?.let { launch(it) }

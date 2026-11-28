@@ -53,6 +53,11 @@ import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.filled.Menu
@@ -472,7 +477,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                     "hidden" -> Spacer(Modifier.height(8.dp))
                     "google" -> {
                         val id = vm.prefs.bottomWidgetId
-                        if (id != -1) {
+                        if (id != -1 && vm.widgetInfo(id) != null) {
                             HostedWidget(
                                 vm, id,
                                 Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp).height(56.dp),
@@ -483,10 +488,19 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
                                     ))
                                 },
                             )
-                        } else Spacer(Modifier.height(8.dp))
+                        } else {
+                            // The widget couldn't be set up or shown: never leave the bottom blank.
+                            SearchBar(
+                                vm,
+                                onSearch = { vm.openGoogleSearch(ctx) },
+                                onApps = { openPanel(false) },
+                                onSettings = { settings = true },
+                            )
+                        }
                     }
                     else -> SearchBar(
-                        onSearch = { openPanel(true) },
+                        vm,
+                        onSearch = { if (vm.prefs.searchTarget == "google") vm.openGoogleSearch(ctx) else openPanel(true) },
                         onApps = { openPanel(false) },
                         onSettings = { settings = true },
                     )
@@ -583,7 +597,8 @@ private fun FavoritesGrid(
                     },
                     MenuAction("Widgets", Icons.Outlined.Widgets) { onOpenWidgets() },
                     MenuAction("Panel wallpaper photo", Icons.Outlined.Image) { onPickPanelWallpaper() },
-                    MenuAction("Home settings", Icons.Outlined.Settings) { onOpenSettings() },
+                    MenuAction("Home settings", Icons.Outlined.Tune) { onOpenSettings() },
+                    MenuAction("Phone settings", Icons.Outlined.Settings) { vm.openPhoneSettings(ctx) },
                 )
             },
             modifier = Modifier.fillMaxSize(),
@@ -731,10 +746,24 @@ fun Modifier.surface(shape: androidx.compose.ui.graphics.Shape, p: TilePalette):
     if (p.glass) this.glass(shape, p).clip(shape)
     else this.clip(shape).background(p.bg).border(0.75.dp, p.border, shape)
 
-/** Bottom bar: one glass pill holding settings, search and all apps. */
+/**
+ * Bottom bar: one glass pill. Search opens Google search (or your apps, per Settings), the mic
+ * starts voice search, ⚙ opens Panel settings (hold for phone settings), ▦ shows all apps.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun SearchBar(onSearch: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit) {
+private fun SearchBar(
+    vm: LauncherViewModel,
+    onSearch: () -> Unit,
+    onApps: () -> Unit,
+    onSettings: () -> Unit,
+) {
     val p = LocalTiles.current
+    val ctx = LocalContext.current
+    val menus = LocalContextMenu.current
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val gearCoords = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val google = vm.prefs.searchTarget == "google"
     Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
         Row(
             Modifier
@@ -746,7 +775,22 @@ private fun SearchBar(onSearch: () -> Unit, onApps: () -> Unit, onSettings: () -
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onSettings),
+                Modifier
+                    .size(42.dp)
+                    .onGloballyPositioned { gearCoords[0] = it }
+                    .clip(CircleShape)
+                    .combinedClickable(
+                        onClick = onSettings,
+                        onLongClick = {
+                            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            gearCoords[0]?.let { c ->
+                                menus.show(c.boundsInWindow(), listOf(
+                                    MenuAction("Panel settings", Icons.Outlined.Tune) { onSettings() },
+                                    MenuAction("Phone settings", Icons.Outlined.Settings) { vm.openPhoneSettings(ctx) },
+                                ))
+                            }
+                        },
+                    ),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Outlined.Settings, "Settings", tint = p.subtle, modifier = Modifier.size(21.dp)) }
             Row(
@@ -756,7 +800,13 @@ private fun SearchBar(onSearch: () -> Unit, onApps: () -> Unit, onSettings: () -
             ) {
                 Icon(Icons.Default.Search, null, tint = p.fg, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Search", color = p.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(if (google) "Google" else "Search", color = p.fg, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+            if (google) {
+                Box(
+                    Modifier.size(42.dp).clip(CircleShape).clickable { vm.openVoiceSearch(ctx) },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Outlined.Mic, "Voice search", tint = p.subtle, modifier = Modifier.size(21.dp)) }
             }
             Box(
                 Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onApps),
