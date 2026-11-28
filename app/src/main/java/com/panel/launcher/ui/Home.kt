@@ -191,7 +191,7 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     val homeAlpha = remember { Animatable(1f) }
     // Cascade on return: header, then grid, then dock/search arrive one after another.
     val entrance = remember { List(3) { Animatable(1f) } }
-    val entranceShift = with(density) { 70.dp.toPx() }
+    val entranceShift = with(density) { 36.dp.toPx() }
     // Animations run in their own scope so one can never cancel another halfway and leave the
     // home screen stuck faded (each animateTo simply takes over from the previous one).
     val animScope = rememberCoroutineScope()
@@ -202,8 +202,8 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
             entrance.forEachIndexed { i, e ->
                 animScope.launch {
                     e.snapTo(0f)
-                    kotlinx.coroutines.delay(40L + i * 60L)
-                    e.animateTo(1f, spring(dampingRatio = 0.68f, stiffness = 260f))
+                    kotlinx.coroutines.delay(i * 30L)
+                    e.animateTo(1f, spring(dampingRatio = 0.78f, stiffness = 480f))
                 }
             }
         } else {
@@ -232,7 +232,8 @@ fun HomeScreen(vm: LauncherViewModel, homePresses: Int) {
     val entranceLayer: androidx.compose.ui.graphics.GraphicsLayerScope.(Int) -> Unit = { i ->
         val e = entrance[i].value
         translationY = (1f - e) * entranceShift
-        alpha = e.coerceIn(0f, 1f)
+        // Never fully hidden, so the grid and dock never look like they haven't loaded.
+        alpha = (0.4f + 0.6f * e).coerceIn(0f, 1f)
     }
 
     // ---- Depth: the home screen blurs and sinks back while the panel, a folder or a menu is open. ----
